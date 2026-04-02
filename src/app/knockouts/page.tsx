@@ -82,6 +82,10 @@ export default function KnockoutsPage() {
               )}
             </React.Fragment>
           ))}
+          {/* Left Final → Center connector */}
+          <svg width={24} height={H} style={{ flexShrink: 0 }}>
+            <line x1={0} y1={H / 2} x2={24} y2={H / 2} stroke="#a3e635" strokeWidth={2} />
+          </svg>
 
           {/* CENTER */}
           <div style={{ height: H, width: 140 }} className="flex flex-col items-center justify-center shrink-0 mx-4">
@@ -95,6 +99,10 @@ export default function KnockoutsPage() {
             </div>
           </div>
 
+          {/* Center → Right Final connector */}
+          <svg width={24} height={H} style={{ flexShrink: 0 }}>
+            <line x1={0} y1={H / 2} x2={24} y2={H / 2} stroke="#a3e635" strokeWidth={2} />
+          </svg>
           {/* RIGHT BRACKET: Final closest to center, R32 on far right */}
           {[...rightRounds].reverse().map((round, r, arr) => (
             <React.Fragment key={r}>
