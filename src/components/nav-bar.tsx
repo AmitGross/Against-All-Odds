@@ -35,6 +35,9 @@ export default async function NavBar() {
       <Link href="/matches" className="hover:underline">
         Matches
       </Link>
+      <Link href="/groups" className="hover:underline">
+        Groups
+      </Link>
       <Link href="/leaderboard" className="hover:underline">
         Leaderboard
       </Link>
