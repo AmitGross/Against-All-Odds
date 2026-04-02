@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { finalizeMatch } from "./actions";
+import { finalizeMatch, unfinalizeMatch } from "./actions";
 
 interface Props {
   matchId: string;
@@ -95,10 +95,23 @@ export default function MatchResultForm({
       {done && (
         <button
           type="button"
-          onClick={() => setDone(false)}
-          className="rounded px-2 py-1 text-xs font-medium text-ink/40 hover:bg-ink/5 hover:text-ink/70"
+          onClick={async () => {
+            setSubmitting(true);
+            setError("");
+            const result = await unfinalizeMatch(matchId);
+            if (result.error) {
+              setError(result.error);
+            } else {
+              setDone(false);
+              setHomeScore("");
+              setAwayScore("");
+            }
+            setSubmitting(false);
+          }}
+          disabled={submitting}
+          className="rounded px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
         >
-          Reset
+          Undo
         </button>
       )}
       {error && <span className="text-xs text-red-600">{error}</span>}

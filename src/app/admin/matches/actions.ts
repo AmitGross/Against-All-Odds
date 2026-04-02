@@ -188,3 +188,52 @@ export async function finalizeMatch(
   revalidatePath("/leaderboard");
   return {};
 }
+
+export async function unfinalizeMatch(
+  matchId: string
+): Promise<{ error?: string }> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.is_admin) return { error: "Not authorized" };
+
+  const admin = createAdminClient();
+
+  // Delete bonuses for this match
+  await admin
+    .from("room_prediction_bonuses")
+    .delete()
+    .eq("match_id", matchId);
+
+  // Delete scores for this match
+  await admin
+    .from("prediction_scores")
+    .delete()
+    .eq("match_id", matchId);
+
+  // Reset match to scheduled
+  const { error: updateErr } = await admin
+    .from("matches")
+    .update({
+      home_score_90: null,
+      away_score_90: null,
+      status: "scheduled",
+      is_locked: false,
+    })
+    .eq("id", matchId);
+
+  if (updateErr) return { error: updateErr.message };
+
+  revalidatePath("/admin/matches");
+  revalidatePath("/matches");
+  revalidatePath("/leaderboard");
+  return {};
+}
