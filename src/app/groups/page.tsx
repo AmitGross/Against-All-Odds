@@ -125,11 +125,11 @@ export default async function GroupsPage() {
 
   // Fetch current user's group predictions
   const { data: { user } } = await supabase.auth.getUser();
-  const predMap: Record<string, { first_place_team_id: string; second_place_team_id: string }> = {};
+  const predMap: Record<string, { first_place_team_id: string }> = {};
   if (user) {
     const { data: preds } = await supabase
       .from("group_predictions")
-      .select("group_name, first_place_team_id, second_place_team_id")
+      .select("group_name, first_place_team_id")
       .eq("tournament_id", tournament.id)
       .eq("user_id", user.id);
     for (const p of preds ?? []) predMap[p.group_name] = p;

@@ -17,7 +17,6 @@ interface GroupPredictionFormProps {
   isLoggedIn: boolean;
   existingPrediction: {
     first_place_team_id: string;
-    second_place_team_id: string;
   } | null;
 }
 
@@ -30,7 +29,6 @@ export default function GroupPredictionForm({
   existingPrediction,
 }: GroupPredictionFormProps) {
   const [first, setFirst] = useState(existingPrediction?.first_place_team_id ?? "");
-  const [second, setSecond] = useState(existingPrediction?.second_place_team_id ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(!!existingPrediction);
   const [error, setError] = useState("");
@@ -46,26 +44,15 @@ export default function GroupPredictionForm({
   if (isLocked) {
     if (existingPrediction) {
       const t1 = teams.find((t) => t.id === existingPrediction.first_place_team_id);
-      const t2 = teams.find((t) => t.id === existingPrediction.second_place_team_id);
       return (
         <div className="px-4 py-3 border-t border-ink/10 bg-ink/5 flex items-center gap-3 text-sm">
-          <span className="text-ink/40 text-xs">Your picks (locked):</span>
+          <span className="text-ink/40 text-xs">Your pick (locked):</span>
           {t1 && (
             <span className="flex items-center gap-1 font-medium">
               <span className="text-xs text-field">1st</span>
               {t1.flag_url && <img src={t1.flag_url} alt="" className="w-5 h-3.5 rounded-sm object-cover" />}
               {t1.name}
             </span>
-          )}
-          {t2 && (
-            <>
-              <span className="text-ink/30">·</span>
-              <span className="flex items-center gap-1 font-medium">
-                <span className="text-xs text-ink/50">2nd</span>
-                {t2.flag_url && <img src={t2.flag_url} alt="" className="w-5 h-3.5 rounded-sm object-cover" />}
-                {t2.name}
-              </span>
-            </>
           )}
           <span className="ml-auto text-xs text-clay">🔒 Locked</span>
         </div>
@@ -80,12 +67,8 @@ export default function GroupPredictionForm({
 
   async function handleSave() {
     setError("");
-    if (!first || !second) {
-      setError("Pick both 1st and 2nd place.");
-      return;
-    }
-    if (first === second) {
-      setError("1st and 2nd must be different teams.");
+    if (!first) {
+      setError("Pick a winner.");
       return;
     }
     setSaving(true);
@@ -99,7 +82,6 @@ export default function GroupPredictionForm({
         tournament_id: tournamentId,
         group_name: groupName,
         first_place_team_id: first,
-        second_place_team_id: second,
         submitted_at: new Date().toISOString(),
       },
       { onConflict: "user_id,tournament_id,group_name" }
@@ -116,7 +98,7 @@ export default function GroupPredictionForm({
       <div className="flex flex-wrap items-end gap-3">
         {/* 1st place */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-field font-medium">1st Place</label>
+          <label className="text-xs text-field font-medium">Group Winner</label>
           <select
             className="rounded border border-ink/20 px-2 py-1 text-sm bg-white min-w-[140px]"
             value={first}
@@ -124,24 +106,7 @@ export default function GroupPredictionForm({
           >
             <option value="">— Pick team —</option>
             {teams.map((t) => (
-              <option key={t.id} value={t.id} disabled={t.id === second}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* 2nd place */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-ink/50 font-medium">2nd Place</label>
-          <select
-            className="rounded border border-ink/20 px-2 py-1 text-sm bg-white min-w-[140px]"
-            value={second}
-            onChange={(e) => { setSecond(e.target.value); setSaved(false); }}
-          >
-            <option value="">— Pick team —</option>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id} disabled={t.id === first}>
+              <option key={t.id} value={t.id}>
                 {t.name}
               </option>
             ))}
