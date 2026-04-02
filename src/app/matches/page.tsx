@@ -97,8 +97,10 @@ export default async function MatchesPage() {
                       matchId={m.id}
                       homeTeamName={m.home_team.name}
                       homeCode={m.home_team.code}
+                      homeFlagUrl={m.home_team.flag_url}
                       awayTeamName={m.away_team.name}
                       awayCode={m.away_team.code}
+                      awayFlagUrl={m.away_team.flag_url}
                       startsAt={m.starts_at}
                       status={m.status}
                       homeScore90={m.home_score_90}

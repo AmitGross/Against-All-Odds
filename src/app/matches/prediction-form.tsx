@@ -9,6 +9,8 @@ interface PredictionFormProps {
   homeCode: string;
   awayTeamName: string;
   awayCode: string;
+  homeFlagUrl?: string | null;
+  awayFlagUrl?: string | null;
   startsAt: string;
   status: string;
   homeScore90: number | null;
@@ -25,8 +27,10 @@ export default function PredictionForm({
   matchId,
   homeTeamName,
   homeCode,
+  homeFlagUrl,
   awayTeamName,
   awayCode,
+  awayFlagUrl,
   startsAt,
   status,
   homeScore90,
@@ -108,7 +112,12 @@ export default function PredictionForm({
   if (locked) {
     return (
       <div className="flex flex-1 items-center justify-center gap-2 text-sm">
-        <span className="w-36 text-right font-medium">{homeTeamName}</span>
+        <span className="w-36 text-right font-medium flex items-center gap-2 justify-end">
+          {homeFlagUrl && (
+            <img src={homeFlagUrl} alt={homeCode + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+          )}
+          {homeTeamName}
+        </span>
         {existingPrediction ? (
           <span className="mx-1 rounded bg-field/10 px-2 py-0.5 text-xs font-semibold text-field">
             {existingPrediction.predicted_home_score_90}
@@ -124,7 +133,12 @@ export default function PredictionForm({
         ) : (
           <span className="w-7" />
         )}
-        <span className="w-36 font-medium">{awayTeamName}</span>
+        <span className="w-36 font-medium flex items-center gap-2">
+          {awayFlagUrl && (
+            <img src={awayFlagUrl} alt={awayCode + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+          )}
+          {awayTeamName}
+        </span>
       </div>
     );
   }
@@ -134,7 +148,12 @@ export default function PredictionForm({
       onSubmit={handleSubmit}
       className="flex flex-1 items-center justify-center gap-2 text-sm"
     >
-      <span className="w-36 text-right font-medium">{homeTeamName}</span>
+      <span className="w-36 text-right font-medium flex items-center gap-2 justify-end">
+        {homeFlagUrl && (
+          <img src={homeFlagUrl} alt={homeCode + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+        )}
+        {homeTeamName}
+      </span>
       <input
         type="number"
         min={0}
@@ -162,7 +181,12 @@ export default function PredictionForm({
         className="w-10 rounded border border-ink/20 px-1 py-0.5 text-center text-xs font-semibold focus:border-field focus:outline-none"
         aria-label={`${awayCode} score prediction`}
       />
-      <span className="w-36 font-medium">{awayTeamName}</span>
+      <span className="w-36 font-medium flex items-center gap-2">
+        {awayFlagUrl && (
+          <img src={awayFlagUrl} alt={awayCode + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+        )}
+        {awayTeamName}
+      </span>
       <button
         type="submit"
         disabled={saving || saved}
