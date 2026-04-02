@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { finalizeMatch, unfinalizeMatch } from "./actions";
+import { finalizeMatch, unfinalizeMatch, toggleLock } from "./actions";
 
 interface Props {
   matchId: string;
@@ -10,6 +10,7 @@ interface Props {
   currentHomeScore: number | null;
   currentAwayScore: number | null;
   status: string;
+  isLocked: boolean;
 }
 
 export default function MatchResultForm({
@@ -19,8 +20,10 @@ export default function MatchResultForm({
   currentHomeScore,
   currentAwayScore,
   status,
+  isLocked: initialLocked,
 }: Props) {
   const isFinished = status === "finished";
+  const [locked, setLocked] = useState(initialLocked);
   const [homeScore, setHomeScore] = useState(
     currentHomeScore?.toString() ?? ""
   );
@@ -114,6 +117,29 @@ export default function MatchResultForm({
           Undo
         </button>
       )}
+      <button
+        type="button"
+        onClick={async () => {
+          setSubmitting(true);
+          setError("");
+          const result = await toggleLock(matchId, !locked);
+          if (result.error) {
+            setError(result.error);
+          } else {
+            setLocked(!locked);
+          }
+          setSubmitting(false);
+        }}
+        disabled={submitting}
+        className={`rounded px-2 py-1 text-xs font-medium ${
+          locked
+            ? "bg-red-100 text-red-600 hover:bg-red-200"
+            : "bg-ink/5 text-ink/50 hover:bg-ink/10"
+        } disabled:opacity-50`}
+        title={locked ? "Predictions locked — click to unlock" : "Click to lock predictions"}
+      >
+        {locked ? "🔒" : "🔓"}
+      </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </form>
   );

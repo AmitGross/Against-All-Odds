@@ -189,6 +189,36 @@ export async function finalizeMatch(
   return {};
 }
 
+export async function toggleLock(
+  matchId: string,
+  lock: boolean
+): Promise<{ error?: string }> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.is_admin) return { error: "Not authorized" };
+
+  const admin = createAdminClient();
+  const { error: err } = await admin
+    .from("matches")
+    .update({ is_locked: lock })
+    .eq("id", matchId);
+
+  if (err) return { error: err.message };
+
+  revalidatePath("/admin/matches");
+  revalidatePath("/matches");
+  return {};
+}
+
 export async function unfinalizeMatch(
   matchId: string
 ): Promise<{ error?: string }> {

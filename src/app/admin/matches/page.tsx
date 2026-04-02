@@ -7,6 +7,7 @@ interface MatchRow {
   group_name: string;
   starts_at: string;
   status: string;
+  is_locked: boolean;
   home_score_90: number | null;
   away_score_90: number | null;
   home_team: { name: string };
@@ -33,7 +34,7 @@ export default async function AdminMatchesPage() {
   const { data: matches } = await supabase
     .from("matches")
     .select(
-      `id, group_name, starts_at, status, home_score_90, away_score_90,
+      `id, group_name, starts_at, status, is_locked, home_score_90, away_score_90,
        home_team:teams!matches_home_team_id_fkey(name),
        away_team:teams!matches_away_team_id_fkey(name)`
     )
@@ -89,6 +90,7 @@ export default async function AdminMatchesPage() {
                   currentHomeScore={m.home_score_90}
                   currentAwayScore={m.away_score_90}
                   status={m.status}
+                  isLocked={m.is_locked}
                 />
               </div>
             ))}
