@@ -92,29 +92,14 @@ export default async function MatchesPage() {
                     {m.group_name}
                   </span>
 
-                  {user ? (
-                    <PredictionForm
-                      matchId={m.id}
-                      homeTeamName={m.home_team.name}
-                      homeCode={m.home_team.code}
-                      awayTeamName={m.away_team.name}
-                      awayCode={m.away_team.code}
-                      startsAt={m.starts_at}
-                      status={m.status}
-                      homeScore90={m.home_score_90}
-                      awayScore90={m.away_score_90}
-                      existingPrediction={prediction}
-                      locked={isLocked}
-                    />
-                  ) : (
-                    <div className="flex flex-1 items-center justify-center gap-3 text-sm">
-                      <span className="w-36 text-right font-medium flex items-center gap-2 justify-end">
-                        {m.home_team.flag_url && (
-                          <img src={m.home_team.flag_url} alt={m.home_team.code + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
-                        )}
-                        {m.home_team.name}
-                        <span className="text-xs text-ink/40 ml-1">{m.home_team.flag_url || 'no flag_url'}</span>
-                      </span>
+                  <div className="flex flex-1 items-center justify-center gap-3 text-sm">
+                    <span className="w-36 text-right font-medium flex items-center gap-2 justify-end">
+                      {m.home_team.flag_url && (
+                        <img src={m.home_team.flag_url} alt={m.home_team.code + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+                      )}
+                      {m.home_team.name}
+                      <span className="text-xs text-red-600 ml-1">{m.home_team.flag_url || 'no flag_url'}</span>
+                    </span>
 
                       {m.status === "finished" ? (
                         <span className="mx-2 rounded bg-red-600 px-3 py-1 text-sm font-bold text-sand">
@@ -132,16 +117,15 @@ export default async function MatchesPage() {
                         </span>
                       )}
 
-                      <span className="w-36 font-medium flex items-center gap-2">
-                        {m.away_team.flag_url && (
-                          <img src={m.away_team.flag_url} alt={m.away_team.code + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
-                        )}
-                        {m.away_team.name}
-                        <span className="text-xs text-ink/40 ml-1">{m.away_team.flag_url || 'no flag_url'}</span>
-                      </span>
-                      <span className="ml-2 text-xs text-ink/30">Log in to predict</span>
-                    </div>
-                  )}
+                    <span className="w-36 font-medium flex items-center gap-2">
+                      {m.away_team.flag_url && (
+                        <img src={m.away_team.flag_url} alt={m.away_team.code + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+                      )}
+                      {m.away_team.name}
+                      <span className="text-xs text-red-600 ml-1">{m.away_team.flag_url || 'no flag_url'}</span>
+                    </span>
+                    <span className="ml-2 text-xs text-ink/30">Log in or predict</span>
+                  </div>
                 </div>
               );
             })}
