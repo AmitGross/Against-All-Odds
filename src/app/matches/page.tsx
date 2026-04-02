@@ -113,6 +113,7 @@ export default async function MatchesPage() {
                           <img src={m.home_team.flag_url} alt={m.home_team.code + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
                         )}
                         {m.home_team.name}
+                        <span className="text-xs text-ink/40 ml-1">{m.home_team.flag_url || 'no flag_url'}</span>
                       </span>
 
                       {m.status === "finished" ? (
@@ -136,6 +137,7 @@ export default async function MatchesPage() {
                           <img src={m.away_team.flag_url} alt={m.away_team.code + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
                         )}
                         {m.away_team.name}
+                        <span className="text-xs text-ink/40 ml-1">{m.away_team.flag_url || 'no flag_url'}</span>
                       </span>
                       <span className="ml-2 text-xs text-ink/30">Log in to predict</span>
                     </div>
