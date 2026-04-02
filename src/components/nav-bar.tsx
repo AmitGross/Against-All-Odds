@@ -58,6 +58,12 @@ export default async function NavBar() {
           >
             Admin Knockouts
           </Link>
+          <Link
+            href="/admin/groups"
+            className="rounded bg-clay/10 px-2 py-0.5 text-clay hover:bg-clay/20"
+          >
+            Admin Groups
+          </Link>
         </>
       )}
     </nav>

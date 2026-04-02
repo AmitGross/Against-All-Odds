@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import Image from "next/image";
+import GroupPredictionForm from "./group-prediction-form";
 
 interface TeamRow {
   id: string;
@@ -115,11 +115,34 @@ export default async function GroupsPage() {
   const standings = buildStandings(matches);
   const groupNames = Object.keys(standings).sort();
 
+  // Fetch lock status for each group
+  const { data: lockRows } = await supabase
+    .from("group_locks")
+    .select("group_name, is_locked")
+    .eq("tournament_id", tournament.id);
+  const lockMap: Record<string, boolean> = {};
+  for (const l of lockRows ?? []) lockMap[l.group_name] = l.is_locked;
+
+  // Fetch current user's group predictions
+  const { data: { user } } = await supabase.auth.getUser();
+  const predMap: Record<string, { first_place_team_id: string; second_place_team_id: string }> = {};
+  if (user) {
+    const { data: preds } = await supabase
+      .from("group_predictions")
+      .select("group_name, first_place_team_id, second_place_team_id")
+      .eq("tournament_id", tournament.id)
+      .eq("user_id", user.id);
+    for (const p of preds ?? []) predMap[p.group_name] = p;
+  }
+
   return (
     <div className="space-y-8 px-4 py-6 max-w-3xl mx-auto">
       <h1 className="text-2xl font-extrabold tracking-wide">Group Standings</h1>
       {groupNames.map((g) => {
         const rows = standings[g];
+        const isLocked = !!lockMap[g];
+        const pred = predMap[g] ?? null;
+
         return (
           <div key={g} className="rounded-xl overflow-hidden border border-ink/10">
             {/* Group header */}
@@ -128,7 +151,7 @@ export default async function GroupsPage() {
               <span className="font-bold text-sm">Group {g}</span>
             </div>
 
-            {/* Table */}
+            {/* Standings table */}
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-ink/10 text-ink/50 text-xs uppercase">
@@ -179,6 +202,16 @@ export default async function GroupsPage() {
                 })}
               </tbody>
             </table>
+
+            {/* Prediction section */}
+            <GroupPredictionForm
+              tournamentId={tournament.id}
+              groupName={g}
+              teams={rows}
+              isLocked={isLocked}
+              isLoggedIn={!!user}
+              existingPrediction={pred}
+            />
           </div>
         );
       })}
