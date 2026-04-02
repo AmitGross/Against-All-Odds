@@ -42,12 +42,20 @@ export default async function NavBar() {
         Knockouts
       </Link>
       {isAdmin && (
-        <Link
-          href="/admin/matches"
-          className="rounded bg-clay/10 px-2 py-0.5 text-clay hover:bg-clay/20"
-        >
-          Admin
-        </Link>
+        <>
+          <Link
+            href="/admin/matches"
+            className="rounded bg-clay/10 px-2 py-0.5 text-clay hover:bg-clay/20"
+          >
+            Admin Matches
+          </Link>
+          <Link
+            href="/admin/knockouts"
+            className="rounded bg-clay/10 px-2 py-0.5 text-clay hover:bg-clay/20"
+          >
+            Admin Knockouts
+          </Link>
+        </>
       )}
     </nav>
   );

@@ -50,21 +50,78 @@ function Connector({ fromCount, side }: { fromCount: number; side: Side }) {
   );
 }
 
-export default function KnockoutsPage() {
-  const leftR32 = [
-    "1E","3 ABCDF","1I","3 CDFGH","2A","2B","1F","2C",
-    "2K","2L","1H","2J","1D","3 BEFIJ","1G","3 AEHIJ",
-  ];
-  const rightR32 = [
-    "1C","2F","2E","2I","1A","3 CEFHI","1L","3 EHIJK",
-    "1J","2H","2D","2G","1B","3 EFGIJ","1K","3 DEIJL",
-  ];
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-  const leftRounds: string[][] = [leftR32];
-  const rightRounds: string[][] = [rightR32];
-  for (let r = 1; r < 5; r++) {
-    leftRounds.push(Array(leftRounds[r - 1].length / 2).fill(""));
-    rightRounds.push(Array(rightRounds[r - 1].length / 2).fill(""));
+const ROUND_ORDER = ["r32", "r16", "qf", "sf", "final"];
+
+interface KnockoutSlot {
+  id: string;
+  round: string;
+  side: string;
+  position: number;
+  slot_label: string | null;
+  home_team: { name: string; flag_url: string | null } | null;
+  away_team: { name: string; flag_url: string | null } | null;
+  winner_team: { name: string } | null;
+  home_score: number | null;
+  away_score: number | null;
+}
+
+function buildRounds(slots: KnockoutSlot[], side: "left" | "right"): string[][] {
+  return ROUND_ORDER.map((round) => {
+    const roundSlots = slots
+      .filter((s) => s.round === round && s.side === side)
+      .sort((a, b) => a.position - b.position);
+    return roundSlots.map((s) => {
+      if (s.home_team && s.away_team) {
+        return `${s.home_team.name} vs ${s.away_team.name}`;
+      }
+      return s.slot_label || "";
+    });
+  });
+}
+
+export default async function KnockoutsPage() {
+  const supabase = await createServerSupabaseClient();
+  const { data: tournament } = await supabase
+    .from("tournaments").select("id").eq("is_active", true).single();
+
+  let leftRounds: string[][] = [];
+  let rightRounds: string[][] = [];
+
+  if (tournament) {
+    const { data: slots } = await supabase
+      .from("knockout_slots")
+      .select(`
+        id, round, side, position, slot_label, home_score, away_score,
+        home_team:teams!knockout_slots_home_team_id_fkey(name, flag_url),
+        away_team:teams!knockout_slots_away_team_id_fkey(name, flag_url),
+        winner_team:teams!knockout_slots_winner_team_id_fkey(name)
+      `)
+      .eq("tournament_id", tournament.id);
+
+    if (slots && slots.length > 0) {
+      leftRounds = buildRounds(slots as unknown as KnockoutSlot[], "left");
+      rightRounds = buildRounds(slots as unknown as KnockoutSlot[], "right");
+    }
+  }
+
+  // Fallback to static labels if no DB data yet
+  if (leftRounds.length === 0 || leftRounds[0].length === 0) {
+    const leftR32 = [
+      "1E","3 ABCDF","1I","3 CDFGH","2A","2B","1F","2C",
+      "2K","2L","1H","2J","1D","3 BEFIJ","1G","3 AEHIJ",
+    ];
+    const rightR32 = [
+      "1C","2F","2E","2I","1A","3 CEFHI","1L","3 EHIJK",
+      "1J","2H","2D","2G","1B","3 EFGIJ","1K","3 DEIJL",
+    ];
+    leftRounds = [leftR32];
+    rightRounds = [rightR32];
+    for (let r = 1; r < 5; r++) {
+      leftRounds.push(Array(leftRounds[r - 1].length / 2).fill(""));
+      rightRounds.push(Array(rightRounds[r - 1].length / 2).fill(""));
+    }
   }
 
   return (
