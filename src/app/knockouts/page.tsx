@@ -23,6 +23,60 @@ function RoundColumn({ items }: { items: string[] }) {
   );
 }
 
+// Connector lines between two bracket columns (left bracket: lines go right)
+function BracketConnectorLeft({ count }: { count: number }) {
+  const slotHeight = TOTAL_HEIGHT / count;
+  const pairs = count / 2;
+  return (
+    <div style={{ height: TOTAL_HEIGHT }} className="relative w-6 shrink-0">
+      {Array.from({ length: pairs }).map((_, i) => {
+        const topMid = i * 2 * slotHeight + slotHeight / 2;
+        const botMid = (i * 2 + 1) * slotHeight + slotHeight / 2;
+        const midY = (topMid + botMid) / 2;
+        return (
+          <React.Fragment key={i}>
+            {/* top horizontal */}
+            <div style={{ position: "absolute", top: topMid, left: 0, width: "100%", height: 2, background: "#a3e635" }} />
+            {/* vertical */}
+            <div style={{ position: "absolute", top: topMid, left: "100%", width: 2, height: botMid - topMid, background: "#a3e635" }} />
+            {/* bottom horizontal */}
+            <div style={{ position: "absolute", top: botMid, left: 0, width: "100%", height: 2, background: "#a3e635" }} />
+            {/* center outgoing */}
+            <div style={{ position: "absolute", top: midY, left: "100%", width: 8, height: 2, background: "#a3e635" }} />
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// Connector lines between two bracket columns (right bracket: lines go left)
+function BracketConnectorRight({ count }: { count: number }) {
+  const slotHeight = TOTAL_HEIGHT / count;
+  const pairs = count / 2;
+  return (
+    <div style={{ height: TOTAL_HEIGHT }} className="relative w-6 shrink-0">
+      {Array.from({ length: pairs }).map((_, i) => {
+        const topMid = i * 2 * slotHeight + slotHeight / 2;
+        const botMid = (i * 2 + 1) * slotHeight + slotHeight / 2;
+        const midY = (topMid + botMid) / 2;
+        return (
+          <React.Fragment key={i}>
+            {/* top horizontal */}
+            <div style={{ position: "absolute", top: topMid, right: 0, width: "100%", height: 2, background: "#a3e635" }} />
+            {/* vertical */}
+            <div style={{ position: "absolute", top: topMid, right: "100%", width: 2, height: botMid - topMid, background: "#a3e635" }} />
+            {/* bottom horizontal */}
+            <div style={{ position: "absolute", top: botMid, right: 0, width: "100%", height: 2, background: "#a3e635" }} />
+            {/* center outgoing */}
+            <div style={{ position: "absolute", top: midY, right: "100%", width: 8, height: 2, background: "#a3e635" }} />
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function KnockoutsPage() {
   const leftR32 = [
     "1E","3 ABCDF","1I","3 CDFGH","2A","2B","1F","2C",
@@ -47,7 +101,12 @@ export default function KnockoutsPage() {
         <div className="flex flex-row items-start min-w-max mx-auto justify-center px-4">
           {/* Left bracket: R32 → R16 → QF → SF → Final (left to right toward center) */}
           {leftRounds.map((round, r) => (
-            <RoundColumn key={r} items={round} />
+            <React.Fragment key={r}>
+              <RoundColumn items={round} />
+              {r < leftRounds.length - 1 && (
+                <BracketConnectorLeft count={round.length} />
+              )}
+            </React.Fragment>
           ))}
 
           {/* Center: Trophy + Winner + Bronze */}
@@ -72,8 +131,13 @@ export default function KnockoutsPage() {
           </div>
 
           {/* Right bracket: Final → SF → QF → R16 → R32 (left to right, away from center) */}
-          {[...rightRounds].reverse().map((round, r) => (
-            <RoundColumn key={r} items={round} />
+          {[...rightRounds].reverse().map((round, r, arr) => (
+            <React.Fragment key={r}>
+              {r < arr.length - 1 && (
+                <BracketConnectorRight count={arr[r + 1].length} />
+              )}
+              <RoundColumn items={round} />
+            </React.Fragment>
           ))}
         </div>
       </div>
