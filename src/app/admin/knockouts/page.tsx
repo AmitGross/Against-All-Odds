@@ -112,6 +112,21 @@ export default async function AdminKnockoutsPage() {
   const { data: teams } = await supabase
     .from("teams").select("id, name, code, flag_url").order("name");
 
+  // Build team → group map from group-stage matches
+  const { data: groupMatches } = await supabase
+    .from("matches")
+    .select("home_team_id, away_team_id, group_name")
+    .eq("tournament_id", tournament.id)
+    .not("group_name", "is", null);
+
+  const teamGroups: Record<string, string> = {};
+  for (const m of groupMatches ?? []) {
+    if (m.group_name) {
+      if (m.home_team_id) teamGroups[m.home_team_id] = m.group_name;
+      if (m.away_team_id) teamGroups[m.away_team_id] = m.group_name;
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Admin — Knockout Bracket</h2>
@@ -122,6 +137,7 @@ export default async function AdminKnockoutsPage() {
         tournamentId={tournament.id}
         initialSlots={(slots ?? []) as Parameters<typeof AdminKnockoutsClient>[0]["initialSlots"]}
         teams={(teams ?? []) as Parameters<typeof AdminKnockoutsClient>[0]["teams"]}
+        teamGroups={teamGroups}
       />
     </div>
   );

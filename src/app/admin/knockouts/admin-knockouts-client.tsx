@@ -34,14 +34,28 @@ interface Slot {
   match_date: string | null;
 }
 
+// Parse slot_label like "1A", "2B", "3 ABCDF" → array of group letters
+function groupsFromLabel(label: string | null): string[] | null {
+  if (!label) return null;
+  // e.g. "1A" or "2B" → ["A"]
+  const single = label.match(/^\d([A-Z])$/);
+  if (single) return [single[1]];
+  // e.g. "3 ABCDF" → ["A","B","C","D","F"]
+  const multi = label.match(/^3 ([A-Z]+)$/);
+  if (multi) return multi[1].split("");
+  return null;
+}
+
 export default function AdminKnockoutsClient({
   tournamentId,
   initialSlots,
   teams,
+  teamGroups,
 }: {
   tournamentId: string;
   initialSlots: Slot[];
   teams: Team[];
+  teamGroups: Record<string, string>;
 }) {
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
   const [saving, setSaving] = useState<string | null>(null);
@@ -79,6 +93,17 @@ export default function AdminKnockoutsClient({
     setSlots((prev) => prev.map((s) => s.id === id ? { ...s, [field]: value } : s));
   }
 
+  function teamsForSlot(slot: Slot): Team[] {
+    // Only filter for R32; later rounds can be any qualified team
+    if (slot.round !== "r32") return teams;
+    const groups = groupsFromLabel(slot.slot_label);
+    if (!groups) return teams;
+    return teams.filter((t) => {
+      const g = teamGroups[t.id];
+      return g && groups.includes(g);
+    });
+  }
+
   const grouped = ROUNDS.reduce((acc, round) => {
     acc[round] = slots.filter((s) => s.round === round);
     return acc;
@@ -112,7 +137,7 @@ export default function AdminKnockoutsClient({
                         onChange={(e) => updateSlot(slot.id, "home_team_id", e.target.value || null)}
                       >
                         <option value="">— Select team —</option>
-                        {teams.map((t) => (
+                        {teamsForSlot(slot).map((t) => (
                           <option key={t.id} value={t.id}>{t.name}</option>
                         ))}
                       </select>
@@ -126,7 +151,7 @@ export default function AdminKnockoutsClient({
                         onChange={(e) => updateSlot(slot.id, "away_team_id", e.target.value || null)}
                       >
                         <option value="">— Select team —</option>
-                        {teams.map((t) => (
+                        {teamsForSlot(slot).map((t) => (
                           <option key={t.id} value={t.id}>{t.name}</option>
                         ))}
                       </select>
