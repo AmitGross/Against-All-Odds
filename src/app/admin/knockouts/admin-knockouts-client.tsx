@@ -127,6 +127,15 @@ export default function AdminKnockoutsClient({
     return result;
   }, [initialSlots]);
 
+  // Lookup: "round-side-position" -> slot id  (built from the original DB fetch)
+  const slotByPos = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const s of initialSlots) map[`${s.round}-${s.side}-${s.position}`] = s.id;
+    return map;
+  }, [initialSlots]);
+
+  const NEXT_ROUND: Record<string, string> = { r32: "r16", r16: "qf", qf: "sf", sf: "final" };
+
   function updateSlot(id: string, field: keyof Slot, value: string | number | null) {
     setSlotMap((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   }
@@ -170,10 +179,53 @@ export default function AdminKnockoutsClient({
       ),
     ]);
 
-    setSaving(null);
     const err = resA.error || resB.error;
-    setMessage(err ? `Error: ${err.message}` : "Saved!");
-    setTimeout(() => setMessage(""), 2000);
+
+    // Auto-populate parent slot with the winner
+    if (!err && slotA.winner_team_id) {
+      const nextRound = NEXT_ROUND[slotA.round];
+      // pairIndex: positions are 0,1 / 2,3 / 4,5 ... so slotA (even pos) / 2 = pair index
+      const pairIndex = Math.floor(slotA.position / 2);
+
+      if (nextRound) {
+        const parentKey = `${nextRound}-${slotA.side}-${pairIndex}`;
+        const parentId = slotByPos[parentKey];
+        if (parentId) {
+          await supabase.from("knockout_slots")
+            .update({ home_team_id: slotA.winner_team_id })
+            .eq("id", parentId);
+          setSlotMap((prev) => ({
+            ...prev,
+            [parentId]: { ...prev[parentId], home_team_id: slotA.winner_team_id },
+          }));
+        }
+      }
+
+      // SF loser goes to bronze (left SF loser → bronze pos 0, right SF loser → bronze pos 1)
+      if (slotA.round === "sf") {
+        const loserTeamId =
+          slotA.winner_team_id === slotA.home_team_id
+            ? slotB.home_team_id
+            : slotA.home_team_id;
+        if (loserTeamId) {
+          const bronzePos = slotA.side === "left" ? 0 : 1;
+          const bronzeId = slotByPos[`bronze-left-${bronzePos}`];
+          if (bronzeId) {
+            await supabase.from("knockout_slots")
+              .update({ home_team_id: loserTeamId })
+              .eq("id", bronzeId);
+            setSlotMap((prev) => ({
+              ...prev,
+              [bronzeId]: { ...prev[bronzeId], home_team_id: loserTeamId },
+            }));
+          }
+        }
+      }
+    }
+
+    setSaving(null);
+    setMessage(err ? `Error: ${err.message}` : "Saved! Winner advanced to next round.");
+    setTimeout(() => setMessage(""), 3000);
   }
 
   return (

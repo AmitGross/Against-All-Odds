@@ -70,6 +70,7 @@ const RIGHT_SLOTS = [
   { round: "sf", side: "right", position: 1, slot_label: "" },
   { round: "final", side: "right", position: 0, slot_label: "" },
   { round: "bronze", side: "left", position: 0, slot_label: "" },
+  { round: "bronze", side: "left", position: 1, slot_label: "" },
 ];
 
 export default async function AdminKnockoutsPage() {
@@ -99,6 +100,12 @@ export default async function AdminKnockoutsPage() {
       tournament_id: tournament.id,
     }));
     await supabase.from("knockout_slots").insert(allSlots);
+  } else {
+    // Backfill bronze slot 1 in case it was seeded before this was added
+    await supabase.from("knockout_slots").upsert(
+      { tournament_id: tournament.id, round: "bronze", side: "left", position: 1, slot_label: "" },
+      { onConflict: "tournament_id,round,side,position", ignoreDuplicates: true }
+    );
   }
 
   // Fetch all slots
