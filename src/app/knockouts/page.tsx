@@ -98,10 +98,10 @@ export default function KnockoutsPage() {
           {/* RIGHT BRACKET: Final closest to center, R32 on far right */}
           {[...rightRounds].reverse().map((round, r, arr) => (
             <React.Fragment key={r}>
+              <Column items={round} />
               {r < arr.length - 1 && (
                 <Connector fromCount={arr[r + 1].length} side="right" />
               )}
-              <Column items={round} />
             </React.Fragment>
           ))}
 
