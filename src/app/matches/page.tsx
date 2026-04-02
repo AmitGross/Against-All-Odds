@@ -116,7 +116,7 @@ export default async function MatchesPage() {
                       </span>
 
                       {m.status === "finished" ? (
-                        <span className="mx-2 rounded bg-ink px-3 py-1 text-sm font-bold text-sand">
+                        <span className="mx-2 rounded bg-red-600 px-3 py-1 text-sm font-bold text-sand">
                           {m.home_score_90} – {m.away_score_90}
                         </span>
                       ) : (
