@@ -38,6 +38,9 @@ export default async function NavBar() {
       <Link href="/leaderboard" className="hover:underline">
         Leaderboard
       </Link>
+      <Link href="/knockouts" className="hover:underline">
+        Knockouts
+      </Link>
       {isAdmin && (
         <Link
           href="/admin/matches"
