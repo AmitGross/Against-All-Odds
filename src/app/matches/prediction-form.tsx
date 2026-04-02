@@ -168,8 +168,8 @@ export default function PredictionForm({
         disabled={saving || saved}
         className={`ml-2 rounded px-2 py-0.5 text-xs font-medium transition ${
           saved
-            ? "bg-red-200 text-red-700"
-            : "bg-red-600 text-white hover:bg-red-700"
+            ? "bg-field/20 text-field"
+            : "bg-field text-white hover:bg-field/90"
         } disabled:opacity-50`}
       >
         {saving ? "…" : saved ? "✓" : "Save"}
