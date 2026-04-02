@@ -150,7 +150,7 @@ export default function PredictionForm({
     >
       <span className="w-36 text-right font-medium flex items-center gap-2 justify-end">
         {homeFlagUrl && (
-          <img src={homeFlagUrl} alt={homeCode + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+          <img src={homeFlagUrl} alt={homeCode + ' flag'} className="inline-block w-8 h-5 rounded border border-ink/10" />
         )}
         {homeTeamName}
       </span>
@@ -183,7 +183,7 @@ export default function PredictionForm({
       />
       <span className="w-36 font-medium flex items-center gap-2">
         {awayFlagUrl && (
-          <img src={awayFlagUrl} alt={awayCode + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+          <img src={awayFlagUrl} alt={awayCode + ' flag'} className="inline-block w-8 h-5 rounded border border-ink/10" />
         )}
         {awayTeamName}
       </span>
