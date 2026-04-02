@@ -9,8 +9,8 @@ interface MatchRow {
   is_locked: boolean;
   home_score_90: number | null;
   away_score_90: number | null;
-  home_team: { code: string; name: string };
-  away_team: { code: string; name: string };
+  home_team: { code: string; name: string; flag_url: string | null };
+  away_team: { code: string; name: string; flag_url: string | null };
 }
 
 interface PredictionRow {
@@ -28,8 +28,8 @@ export default async function MatchesPage() {
     .from("matches")
     .select(
       `id, group_name, starts_at, status, is_locked, home_score_90, away_score_90,
-       home_team:teams!matches_home_team_id_fkey(code, name),
-       away_team:teams!matches_away_team_id_fkey(code, name)`
+       home_team:teams!matches_home_team_id_fkey(code, name, flag_url),
+       away_team:teams!matches_away_team_id_fkey(code, name, flag_url)`
     )
     .eq("stage", "group")
     .order("starts_at", { ascending: true });
@@ -108,7 +108,10 @@ export default async function MatchesPage() {
                     />
                   ) : (
                     <div className="flex flex-1 items-center justify-center gap-3 text-sm">
-                      <span className="w-36 text-right font-medium">
+                      <span className="w-36 text-right font-medium flex items-center gap-2 justify-end">
+                        {m.home_team.flag_url && (
+                          <img src={m.home_team.flag_url} alt={m.home_team.code + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+                        )}
                         {m.home_team.name}
                       </span>
 
@@ -128,7 +131,10 @@ export default async function MatchesPage() {
                         </span>
                       )}
 
-                      <span className="w-36 font-medium">
+                      <span className="w-36 font-medium flex items-center gap-2">
+                        {m.away_team.flag_url && (
+                          <img src={m.away_team.flag_url} alt={m.away_team.code + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+                        )}
                         {m.away_team.name}
                       </span>
                       <span className="ml-2 text-xs text-ink/30">Log in to predict</span>
