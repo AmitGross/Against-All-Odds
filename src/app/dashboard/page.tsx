@@ -26,9 +26,9 @@ export default async function DashboardPage() {
 
   const totalPoints = (scoreRows ?? []).reduce((sum, r) => sum + (r.base_points ?? 0), 0);
 
-  // Matches starting in the next 24 hours
+  // QA MODE: widened to 30 days — revert to 24 * 60 * 60 * 1000 after testing
   const now = new Date();
-  const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const in24h = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   const { data: upcomingMatches } = await supabase
     .from("matches")
