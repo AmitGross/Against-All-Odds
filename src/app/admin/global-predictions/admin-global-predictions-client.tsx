@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
-import { toggleGlobalLock, setCorrectAnswer } from "./actions";
+import { setAnswerAndLock, unlockPrediction } from "./actions";
 
 type Setting = {
   type: string;
@@ -38,20 +38,21 @@ function GlobalCard({
   const [feedback, setFeedback] = useState<string | null>(null);
 
   function handleLock() {
-    startTransition(async () => {
-      await toggleGlobalLock(setting.type, !setting.is_locked);
-      setFeedback(setting.is_locked ? "Unlocked." : "Locked.");
-      setTimeout(() => setFeedback(null), 2000);
-    });
-  }
-
-  function handleSetAnswer() {
     if (!selectedId) return;
     startTransition(async () => {
       const teamId = meta.usesPlayer ? null : selectedId;
       const playerId = meta.usesPlayer ? selectedId : null;
-      await setCorrectAnswer(setting.type, teamId, playerId);
-      setFeedback("Correct answer saved & points awarded to matching picks.");
+      await setAnswerAndLock(setting.type, teamId, playerId);
+      setFeedback("Locked & points awarded ✓");
+      setTimeout(() => setFeedback(null), 3000);
+    });
+  }
+
+  function handleUnlock() {
+    startTransition(async () => {
+      await unlockPrediction(setting.type);
+      setSelectedId("");
+      setFeedback("Unlocked — points reset.");
       setTimeout(() => setFeedback(null), 3000);
     });
   }
@@ -71,47 +72,43 @@ function GlobalCard({
         </span>
       </div>
 
-      {/* Current correct answer */}
-      <div className="text-sm">
-        <span className="text-ink/50">Correct answer: </span>
-        <span className="font-medium text-ink">{currentLabel ?? <em className="text-ink/30">Not set</em>}</span>
-      </div>
+      {setting.is_locked ? (
+        <>
+          <div className="text-sm">
+            <span className="text-ink/50">Correct answer: </span>
+            <span className="font-medium text-ink">{currentLabel ?? <em className="text-ink/30">None</em>}</span>
+          </div>
+          <button
+            onClick={handleUnlock}
+            disabled={isPending}
+            className="rounded border border-clay px-4 py-2 text-sm font-semibold text-clay hover:bg-clay/10 disabled:opacity-40 transition-colors"
+          >
+            {isPending ? "…" : "Unlock & Reset Points"}
+          </button>
+        </>
+      ) : (
+        <>
+          <select
+            value={selectedId}
+            onChange={(e) => setSelectedId(e.target.value)}
+            className="w-full rounded border border-ink/20 bg-sand px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-field/40"
+            disabled={isPending}
+          >
+            <option value="">— Select {meta.usesPlayer ? "player" : "team"} —</option>
+            {options.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
 
-      {/* Correct answer selector */}
-      <select
-        value={selectedId}
-        onChange={(e) => setSelectedId(e.target.value)}
-        className="w-full rounded border border-ink/20 bg-sand px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-field/40"
-        disabled={isPending}
-      >
-        <option value="">— Select {meta.usesPlayer ? "player" : "team"} —</option>
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {"name" in o ? o.name : (o as Team).name}
-          </option>
-        ))}
-      </select>
-
-      <button
-        onClick={handleSetAnswer}
-        disabled={!selectedId || isPending}
-        className="rounded bg-field px-4 py-2 text-sm font-semibold text-white hover:bg-field/90 disabled:opacity-40 transition-colors"
-      >
-        {isPending ? "Saving…" : "Set Correct Answer & Award Points"}
-      </button>
-
-      {/* Lock toggle */}
-      <button
-        onClick={handleLock}
-        disabled={isPending}
-        className={`rounded border px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-40 ${
-          setting.is_locked
-            ? "border-field text-field hover:bg-field/10"
-            : "border-clay text-clay hover:bg-clay/10"
-        }`}
-      >
-        {isPending ? "…" : setting.is_locked ? "Unlock Predictions" : "Lock Predictions"}
-      </button>
+          <button
+            onClick={handleLock}
+            disabled={!selectedId || isPending}
+            className="rounded bg-clay px-4 py-2 text-sm font-semibold text-white hover:bg-clay/90 disabled:opacity-40 transition-colors"
+          >
+            {isPending ? "Saving…" : "Set Answer & Lock 🔒"}
+          </button>
+        </>
+      )}
 
       {feedback && <p className="text-xs font-medium text-field">{feedback}</p>}
     </div>

@@ -13,43 +13,46 @@ async function assertAdmin() {
   return supabase;
 }
 
-export async function toggleGlobalLock(type: string, lock: boolean) {
-  const supabase = await assertAdmin();
-  await supabase.from("global_prediction_settings").update({ is_locked: lock, updated_at: new Date().toISOString() }).eq("type", type);
-  revalidatePath("/admin/global-predictions");
-  revalidatePath("/dashboard");
+async function awardPoints(supabase: Awaited<ReturnType<typeof assertAdmin>>, type: string, teamId: string | null, playerId: string | null) {
+  if (type === "winner" && teamId) {
+    await supabase.from("global_predictions").update({ points_awarded: 10 }).eq("type", type).eq("team_id", teamId);
+    await supabase.from("global_predictions").update({ points_awarded: 0 }).eq("type", type).neq("team_id", teamId);
+  } else if ((type === "top_scorer" || type === "assist_leader") && playerId) {
+    await supabase.from("global_predictions").update({ points_awarded: 10 }).eq("type", type).eq("player_id", playerId);
+    await supabase.from("global_predictions").update({ points_awarded: 0 }).eq("type", type).neq("player_id", playerId);
+  }
 }
 
-export async function setCorrectAnswer(type: string, teamId: string | null, playerId: string | null) {
+/** Set the correct answer, lock the prediction, and award points — all in one step. */
+export async function setAnswerAndLock(type: string, teamId: string | null, playerId: string | null) {
   const supabase = await assertAdmin();
 
   await supabase.from("global_prediction_settings").update({
     correct_team_id: teamId,
     correct_player_id: playerId,
+    is_locked: true,
     updated_at: new Date().toISOString(),
   }).eq("type", type);
 
-  // Award 10 points to all users who picked correctly
-  if (type === "winner" && teamId) {
-    await supabase.from("global_predictions")
-      .update({ points_awarded: 10 })
-      .eq("type", type)
-      .eq("team_id", teamId);
-    // Zero out wrong picks
-    await supabase.from("global_predictions")
-      .update({ points_awarded: 0 })
-      .eq("type", type)
-      .neq("team_id", teamId);
-  } else if ((type === "top_scorer" || type === "assist_leader") && playerId) {
-    await supabase.from("global_predictions")
-      .update({ points_awarded: 10 })
-      .eq("type", type)
-      .eq("player_id", playerId);
-    await supabase.from("global_predictions")
-      .update({ points_awarded: 0 })
-      .eq("type", type)
-      .neq("player_id", playerId);
-  }
+  await awardPoints(supabase, type, teamId, playerId);
+
+  revalidatePath("/admin/global-predictions");
+  revalidatePath("/dashboard");
+}
+
+/** Unlock so users can change their picks; clears points until re-locked. */
+export async function unlockPrediction(type: string) {
+  const supabase = await assertAdmin();
+
+  await supabase.from("global_prediction_settings").update({
+    is_locked: false,
+    correct_team_id: null,
+    correct_player_id: null,
+    updated_at: new Date().toISOString(),
+  }).eq("type", type);
+
+  // Reset all points for this type since the answer is being cleared
+  await supabase.from("global_predictions").update({ points_awarded: 0 }).eq("type", type);
 
   revalidatePath("/admin/global-predictions");
   revalidatePath("/dashboard");
