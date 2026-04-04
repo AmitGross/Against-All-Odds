@@ -26,6 +26,9 @@ export default async function NavBar() {
 
   return (
     <nav className="flex items-center gap-4 text-sm">
+      <Link href="/" className="hover:underline">
+        Home
+      </Link>
       <Link href="/dashboard" className="hover:underline">
         Dashboard
       </Link>
