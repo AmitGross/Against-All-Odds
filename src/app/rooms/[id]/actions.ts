@@ -116,6 +116,13 @@ export async function deleteRoom(roomId: string) {
 
 export async function renameRoom(roomId: string, newName: string) {
   const supabase = await createServerSupabaseClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const trimmed = newName.trim();
   if (!trimmed) return { error: "Room name cannot be empty." };
   if (trimmed.length > 50) return { error: "Room name must be 50 characters or fewer." };
 
