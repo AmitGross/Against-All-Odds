@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { leaveRoom, transferOwnershipAndLeave } from "./actions";
+import { leaveRoom, transferOwnershipAndLeave, deleteRoom } from "./actions";
 
 interface Member {
   userId: string;
@@ -24,9 +24,12 @@ export default function LeaveRoomButton({ roomId, isOwner, otherMembers }: Props
   function handleLeave() {
     setError(null);
     startTransition(async () => {
-      const result = isOwner
-        ? await transferOwnershipAndLeave(roomId, newOwnerId)
-        : await leaveRoom(roomId);
+      const result =
+        isOwner && otherMembers.length === 0
+          ? await deleteRoom(roomId)
+          : isOwner
+          ? await transferOwnershipAndLeave(roomId, newOwnerId)
+          : await leaveRoom(roomId);
       if (result?.error) setError(result.error);
     });
   }
@@ -47,7 +50,7 @@ export default function LeaveRoomButton({ roomId, isOwner, otherMembers }: Props
       {isOwner ? (
         <>
           {otherMembers.length === 0 ? (
-            <p className="text-sm text-ink/70">You are the only member. You cannot leave.</p>
+            <p className="text-sm text-ink/70">You are the only member. This will permanently close the room.</p>
           ) : (
             <>
               <p className="text-sm text-ink/70">
@@ -79,13 +82,21 @@ export default function LeaveRoomButton({ roomId, isOwner, otherMembers }: Props
         >
           Cancel
         </button>
-        {(!isOwner || otherMembers.length > 0) && (
+        {(!isOwner || otherMembers.length > 0) ? (
           <button
             onClick={handleLeave}
             disabled={isPending || (isOwner && !newOwnerId)}
             className="rounded bg-clay px-3 py-1.5 text-sm font-semibold text-white hover:bg-clay/90 disabled:opacity-50"
           >
             {isPending ? "Leaving…" : isOwner ? "Transfer & Leave" : "Yes, Leave"}
+          </button>
+        ) : (
+          <button
+            onClick={handleLeave}
+            disabled={isPending}
+            className="rounded bg-clay px-3 py-1.5 text-sm font-semibold text-white hover:bg-clay/90 disabled:opacity-50"
+          >
+            {isPending ? "Closing…" : "Close Room"}
           </button>
         )}
       </div>

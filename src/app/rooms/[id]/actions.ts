@@ -87,7 +87,32 @@ export async function transferOwnershipAndLeave(roomId: string, newOwnerId: stri
   redirect("/rooms");
 }
 
-export async function renameRoom(roomId: string, newName: string) {
+export async function deleteRoom(roomId: string) {
+  const supabase = await createServerSupabaseClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: room } = await supabase
+    .from("rooms")
+    .select("created_by")
+    .eq("id", roomId)
+    .single();
+
+  if (!room || room.created_by !== user.id)
+    return { error: "Only the owner can close the room." };
+
+  const { error } = await supabase
+    .from("rooms")
+    .delete()
+    .eq("id", roomId);
+
+  if (error) return { error: "Failed to close room. Please try again." };
+
+  redirect("/rooms");
+}
   const supabase = await createServerSupabaseClient();
 
   const {
