@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import CopyInviteButton from "./copy-invite-button";
+import LeaveRoomButton from "./leave-room-button";
 
 export default async function RoomDetailPage({
   params,
@@ -100,11 +101,14 @@ export default async function RoomDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">{room.name}</h2>
-        <p className="text-sm text-ink/40">
-          {(members ?? []).length} member{(members ?? []).length !== 1 ? "s" : ""}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">{room.name}</h2>
+          <p className="text-sm text-ink/40">
+            {(members ?? []).length} member{(members ?? []).length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        {!isOwner && <LeaveRoomButton roomId={room.id} />}
       </div>
 
       {/* Invite Code */}
