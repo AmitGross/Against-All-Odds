@@ -104,12 +104,12 @@ export async function deleteRoom(roomId: string) {
   if (!room || room.created_by !== user.id)
     return { error: "Only the owner can close the room." };
 
-  const { error } = await supabase
-    .from("rooms")
-    .delete()
-    .eq("id", roomId);
+  // Delete memberships first to avoid any constraint issues
+  await supabase.from("room_memberships").delete().eq("room_id", roomId);
 
-  if (error) return { error: "Failed to close room. Please try again." };
+  const { error } = await supabase.from("rooms").delete().eq("id", roomId);
+
+  if (error) return { error: `Failed to close room: ${error.message}` };
 
   redirect("/rooms");
 }
