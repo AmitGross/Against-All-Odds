@@ -42,9 +42,13 @@ function GlobalCard({
     startTransition(async () => {
       const teamId = meta.usesPlayer ? null : selectedId;
       const playerId = meta.usesPlayer ? selectedId : null;
-      await setAnswerAndLock(setting.type, teamId, playerId);
-      setFeedback("Locked & points awarded ✓");
-      setTimeout(() => setFeedback(null), 3000);
+      const result = await setAnswerAndLock(setting.type, teamId, playerId);
+      if (result?.error) {
+        setFeedback(`Error: ${result.error}`);
+      } else {
+        setFeedback("Locked & points awarded ✓");
+        setTimeout(() => setFeedback(null), 3000);
+      }
     });
   }
 
@@ -110,7 +114,7 @@ function GlobalCard({
         </>
       )}
 
-      {feedback && <p className="text-xs font-medium text-field">{feedback}</p>}
+      {feedback && <p className={`text-xs font-medium ${feedback.startsWith("Error:") ? "text-clay" : "text-field"}`}>{feedback}</p>}
     </div>
   );
 }

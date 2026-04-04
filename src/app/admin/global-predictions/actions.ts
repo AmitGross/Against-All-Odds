@@ -15,29 +15,40 @@ async function assertAdmin() {
 
 async function awardPoints(supabase: Awaited<ReturnType<typeof assertAdmin>>, type: string, teamId: string | null, playerId: string | null) {
   if (type === "winner" && teamId) {
-    await supabase.from("global_predictions").update({ points_awarded: 10 }).eq("type", type).eq("team_id", teamId);
-    await supabase.from("global_predictions").update({ points_awarded: 0 }).eq("type", type).neq("team_id", teamId);
+    const { error: e1 } = await supabase.from("global_predictions").update({ points_awarded: 10 }).eq("type", type).eq("team_id", teamId);
+    if (e1) throw new Error(`Award correct picks failed: ${e1.message}`);
+    const { error: e2 } = await supabase.from("global_predictions").update({ points_awarded: 0 }).eq("type", type).neq("team_id", teamId);
+    if (e2) throw new Error(`Zero wrong picks failed: ${e2.message}`);
   } else if ((type === "top_scorer" || type === "assist_leader") && playerId) {
-    await supabase.from("global_predictions").update({ points_awarded: 10 }).eq("type", type).eq("player_id", playerId);
-    await supabase.from("global_predictions").update({ points_awarded: 0 }).eq("type", type).neq("player_id", playerId);
+    const { error: e1 } = await supabase.from("global_predictions").update({ points_awarded: 10 }).eq("type", type).eq("player_id", playerId);
+    if (e1) throw new Error(`Award correct picks failed: ${e1.message}`);
+    const { error: e2 } = await supabase.from("global_predictions").update({ points_awarded: 0 }).eq("type", type).neq("player_id", playerId);
+    if (e2) throw new Error(`Zero wrong picks failed: ${e2.message}`);
   }
 }
 
 /** Set the correct answer, lock the prediction, and award points — all in one step. */
-export async function setAnswerAndLock(type: string, teamId: string | null, playerId: string | null) {
-  const supabase = await assertAdmin();
+export async function setAnswerAndLock(type: string, teamId: string | null, playerId: string | null): Promise<{ error?: string }> {
+  try {
+    const supabase = await assertAdmin();
 
-  await supabase.from("global_prediction_settings").update({
-    correct_team_id: teamId,
-    correct_player_id: playerId,
-    is_locked: true,
-    updated_at: new Date().toISOString(),
-  }).eq("type", type);
+    const { error: settingsError } = await supabase.from("global_prediction_settings").update({
+      correct_team_id: teamId,
+      correct_player_id: playerId,
+      is_locked: true,
+      updated_at: new Date().toISOString(),
+    }).eq("type", type);
 
-  await awardPoints(supabase, type, teamId, playerId);
+    if (settingsError) return { error: `Settings update failed: ${settingsError.message}` };
 
-  revalidatePath("/admin/global-predictions");
-  revalidatePath("/dashboard");
+    await awardPoints(supabase, type, teamId, playerId);
+
+    revalidatePath("/admin/global-predictions");
+    revalidatePath("/dashboard");
+    return {};
+  } catch (e: any) {
+    return { error: e.message ?? "Unknown error" };
+  }
 }
 
 /** Unlock so users can change their picks; clears points until re-locked. */
