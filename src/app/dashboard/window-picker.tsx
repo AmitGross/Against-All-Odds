@@ -6,7 +6,6 @@ const OPTIONS = [
   { label: "24 hours", value: "24h" },
   { label: "2 days",   value: "2d"  },
   { label: "1 week",   value: "1w"  },
-  { label: "1 year",   value: "1y"  }, // QA only — remove later
 ];
 
 export default function WindowPicker({ current }: { current: string }) {

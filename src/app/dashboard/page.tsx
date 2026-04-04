@@ -10,7 +10,6 @@ const WINDOW_MS: Record<string, number> = {
   "24h": 24 * 60 * 60 * 1000,
   "2d":  2  * 24 * 60 * 60 * 1000,
   "1w":  7  * 24 * 60 * 60 * 1000,
-  "1y":  365 * 24 * 60 * 60 * 1000, // QA only
 };
 
 export default async function DashboardPage({
