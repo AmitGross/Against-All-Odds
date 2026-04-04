@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import CopyInviteButton from "./copy-invite-button";
 import LeaveRoomButton from "./leave-room-button";
+import RenameRoomForm from "./rename-room-form";
 
 export default async function RoomDetailPage({
   params,
@@ -42,6 +43,14 @@ export default async function RoomDetailPage({
     .order("joined_at", { ascending: true });
 
   const isOwner = room.created_by === user.id;
+
+  const otherMembers = (members ?? [])
+    .filter((m: any) => m.user_id !== user.id)
+    .map((m: any) => ({
+      userId: m.user_id as string,
+      displayName: m.profiles?.display_name ?? null,
+      username: m.profiles?.username ?? "Unknown",
+    }));
 
   // Fetch prediction scores for room members
   const memberIds = (members ?? []).map((m: any) => m.user_id as string);
@@ -107,8 +116,9 @@ export default async function RoomDetailPage({
           <p className="text-sm text-ink/40">
             {(members ?? []).length} member{(members ?? []).length !== 1 ? "s" : ""}
           </p>
+          {isOwner && <RenameRoomForm roomId={room.id} currentName={room.name} />}
         </div>
-        {!isOwner && <LeaveRoomButton roomId={room.id} />}
+        <LeaveRoomButton roomId={room.id} isOwner={isOwner} otherMembers={otherMembers} />
       </div>
 
       {/* Invite Code */}
