@@ -26,6 +26,33 @@ export default async function DashboardPage() {
 
   const totalPoints = (scoreRows ?? []).reduce((sum, r) => sum + (r.base_points ?? 0), 0);
 
+  // Matches starting in the next 24 hours
+  const now = new Date();
+  const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  const { data: upcomingMatches } = await supabase
+    .from("matches")
+    .select("id, starts_at, is_locked, home_team:home_team_id(name), away_team:away_team_id(name)")
+    .eq("status", "scheduled")
+    .eq("is_locked", false)
+    .gt("starts_at", now.toISOString())
+    .lte("starts_at", in24h.toISOString());
+
+  const upcoming = upcomingMatches ?? [];
+
+  // Which of those does the user already have a prediction for?
+  const upcomingIds = upcoming.map((m: any) => m.id as string);
+  const { data: existingPredictions } = upcomingIds.length > 0
+    ? await supabase
+        .from("predictions")
+        .select("match_id")
+        .eq("user_id", user.id)
+        .in("match_id", upcomingIds)
+    : { data: [] };
+
+  const predictedMatchIds = new Set((existingPredictions ?? []).map((p: any) => p.match_id as string));
+  const missingMatches = upcoming.filter((m: any) => !predictedMatchIds.has(m.id));
+
   const profile = {
     username: profileRow?.username ?? user.email ?? "unknown",
     usernameSet: profileRow?.username_set ?? false,
@@ -78,14 +105,49 @@ export default async function DashboardPage() {
         <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-ink/40">
           Upcoming Predictions
         </h3>
-        {/* Placeholder — green = all good, red = missing predictions */}
-        <div className="flex items-center gap-3 rounded-xl bg-field/10 px-4 py-3">
-          <span className="text-xl">✅</span>
-          <div>
-            <p className="text-sm font-semibold text-field">You&apos;re all caught up!</p>
-            <p className="text-xs text-ink/50">No unpredicted matches in the next 24 hours.</p>
+        {missingMatches.length === 0 ? (
+          <div className="flex items-center gap-3 rounded-xl bg-field/10 px-4 py-3">
+            <span className="text-xl">✅</span>
+            <div>
+              <p className="text-sm font-semibold text-field">You&apos;re all caught up!</p>
+              <p className="text-xs text-ink/50">
+                {upcoming.length === 0
+                  ? "No matches in the next 24 hours."
+                  : "All matches in the next 24 hours have predictions."}
+              </p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 rounded-xl bg-clay/10 px-4 py-3">
+              <span className="text-xl">⚠️</span>
+              <div>
+                <p className="text-sm font-semibold text-clay">
+                  {missingMatches.length} match{missingMatches.length !== 1 ? "es" : ""} without a prediction!
+                </p>
+                <p className="text-xs text-ink/50">These matches kick off in the next 24 hours.</p>
+              </div>
+            </div>
+            <ul className="space-y-1">
+              {missingMatches.map((m: any) => (
+                <li key={m.id} className="flex items-center justify-between rounded-lg border border-clay/20 bg-clay/5 px-3 py-2 text-sm">
+                  <span className="font-medium">
+                    {m.home_team?.name ?? "?"} vs {m.away_team?.name ?? "?"}
+                  </span>
+                  <span className="text-xs text-ink/40">
+                    {new Date(m.starts_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <a
+              href="/matches"
+              className="inline-block rounded bg-clay px-4 py-2 text-sm font-semibold text-white hover:bg-clay/90 transition-colors"
+            >
+              Go predict now →
+            </a>
+          </div>
+        )}
       </section>
 
       {/* ── Section 4: Global Predictions ── */}
