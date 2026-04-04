@@ -68,3 +68,38 @@ export async function updateProfile({
   revalidatePath("/dashboard");
   return { success: true };
 }
+
+export async function saveGlobalPrediction({
+  type,
+  teamId,
+  playerId,
+}: {
+  type: string;
+  teamId: string | null;
+  playerId: string | null;
+}) {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  // Don't allow picks on locked predictions
+  const { data: setting } = await supabase
+    .from("global_prediction_settings")
+    .select("is_locked")
+    .eq("type", type)
+    .single();
+
+  if (setting?.is_locked) return { error: "This prediction is locked." };
+
+  const { error } = await supabase.from("global_predictions").upsert(
+    { user_id: user.id, type, team_id: teamId, player_id: playerId, updated_at: new Date().toISOString() },
+    { onConflict: "user_id,type" }
+  );
+
+  if (error) return { error: "Failed to save prediction." };
+
+  revalidatePath("/dashboard");
+  return { success: true };
+}

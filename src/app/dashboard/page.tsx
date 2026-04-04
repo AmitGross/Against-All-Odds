@@ -5,6 +5,7 @@ import LogoutButton from "@/components/auth/logout-button";
 import UsernameEditor from "./username-editor";
 import ProfileDetailsEditor from "./profile-details-editor";
 import WindowPicker from "./window-picker";
+import GlobalPredictionCard from "./global-prediction-card";
 
 const WINDOW_MS: Record<string, number> = {
   "24h": 24 * 60 * 60 * 1000,
@@ -34,12 +35,14 @@ export default async function DashboardPage({
     .single();
 
   // Sum all scored points for this user
-  const { data: scoreRows } = await supabase
-    .from("prediction_scores")
-    .select("base_points")
-    .eq("user_id", user.id);
+  const [{ data: scoreRows }, { data: globalScoreRows }] = await Promise.all([
+    supabase.from("prediction_scores").select("base_points").eq("user_id", user.id),
+    supabase.from("global_predictions").select("points_awarded").eq("user_id", user.id),
+  ]);
 
-  const totalPoints = (scoreRows ?? []).reduce((sum, r) => sum + (r.base_points ?? 0), 0);
+  const matchPoints = (scoreRows ?? []).reduce((sum, r) => sum + (r.base_points ?? 0), 0);
+  const globalPoints = (globalScoreRows ?? []).reduce((sum, r) => sum + (r.points_awarded ?? 0), 0);
+  const totalPoints = matchPoints + globalPoints;
 
   // Matches starting within the chosen window
   const now = new Date();
@@ -67,6 +70,17 @@ export default async function DashboardPage({
 
   const predictedMatchIds = new Set((existingPredictions ?? []).map((p: any) => p.match_id as string));
   const missingMatches = upcoming.filter((m: any) => !predictedMatchIds.has(m.id));
+
+  // Global predictions data
+  const [{ data: globalSettings }, { data: allTeams }, { data: allPlayers }, { data: userGlobalPicks }] = await Promise.all([
+    supabase.from("global_prediction_settings").select("*"),
+    supabase.from("teams").select("id, name, flag_url").order("name"),
+    supabase.from("players").select("id, name").order("name"),
+    supabase.from("global_predictions").select("type, team_id, player_id, points_awarded").eq("user_id", user.id),
+  ]);
+
+  const settingsMap = Object.fromEntries((globalSettings ?? []).map((s: any) => [s.type, s]));
+  const picksMap = Object.fromEntries((userGlobalPicks ?? []).map((p: any) => [p.type, p]));
 
   const profile = {
     username: profileRow?.username ?? user.email ?? "unknown",
@@ -178,52 +192,21 @@ export default async function DashboardPage({
         </p>
 
         <div className="grid gap-4 sm:grid-cols-3">
-
-          {/* Tournament Winner */}
-          <div className="flex flex-col gap-3 rounded-xl border border-ink/10 p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🏆</span>
-              <span className="text-sm font-semibold">Tournament Winner</span>
-            </div>
-            <p className="text-xs text-ink/40">Pick which nation lifts the trophy.</p>
-            <div className="mt-auto">
-              <span className="inline-block rounded-full bg-field/10 px-2 py-0.5 text-xs font-medium text-field">
-                Open
-              </span>
-              <p className="mt-2 text-xs text-ink/40">Your pick: <span className="text-ink font-medium italic">None yet</span></p>
-            </div>
-          </div>
-
-          {/* Top Scorer */}
-          <div className="flex flex-col gap-3 rounded-xl border border-ink/10 p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">⚽</span>
-              <span className="text-sm font-semibold">Top Scorer</span>
-            </div>
-            <p className="text-xs text-ink/40">Pick the player with the most goals.</p>
-            <div className="mt-auto">
-              <span className="inline-block rounded-full bg-field/10 px-2 py-0.5 text-xs font-medium text-field">
-                Open
-              </span>
-              <p className="mt-2 text-xs text-ink/40">Your pick: <span className="text-ink font-medium italic">None yet</span></p>
-            </div>
-          </div>
-
-          {/* Assist Leader */}
-          <div className="flex flex-col gap-3 rounded-xl border border-ink/10 p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🎯</span>
-              <span className="text-sm font-semibold">Assist Leader</span>
-            </div>
-            <p className="text-xs text-ink/40">Pick the player with the most assists.</p>
-            <div className="mt-auto">
-              <span className="inline-block rounded-full bg-field/10 px-2 py-0.5 text-xs font-medium text-field">
-                Open
-              </span>
-              <p className="mt-2 text-xs text-ink/40">Your pick: <span className="text-ink font-medium italic">None yet</span></p>
-            </div>
-          </div>
-
+          {["winner", "top_scorer", "assist_leader"].map((t) => {
+            const s = settingsMap[t];
+            const pick = picksMap[t] ?? null;
+            return (
+              <GlobalPredictionCard
+                key={t}
+                type={t}
+                isLocked={s?.is_locked ?? false}
+                teams={allTeams ?? []}
+                players={allPlayers ?? []}
+                currentPick={pick ? { teamId: pick.team_id, playerId: pick.player_id } : null}
+                pointsAwarded={pick?.points_awarded ?? 0}
+              />
+            );
+          })}
         </div>
       </section>
 

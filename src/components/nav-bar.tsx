@@ -67,6 +67,12 @@ export default async function NavBar() {
           >
             Admin Groups
           </Link>
+          <Link
+            href="/admin/global-predictions"
+            className="rounded bg-clay/10 px-2 py-0.5 text-clay hover:bg-clay/20"
+          >
+            Admin Global
+          </Link>
         </>
       )}
     </nav>
