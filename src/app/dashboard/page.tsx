@@ -18,12 +18,20 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
+  // Sum all scored points for this user
+  const { data: scoreRows } = await supabase
+    .from("prediction_scores")
+    .select("base_points")
+    .eq("user_id", user.id);
+
+  const totalPoints = (scoreRows ?? []).reduce((sum, r) => sum + (r.base_points ?? 0), 0);
+
   const profile = {
     username: profileRow?.username ?? user.email ?? "unknown",
     usernameSet: profileRow?.username_set ?? false,
     age: profileRow?.age ?? null,
     country: profileRow?.country ?? null,
-    totalPoints: 0,
+    totalPoints,
   };
 
   return (
