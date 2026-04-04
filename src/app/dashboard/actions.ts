@@ -20,11 +20,11 @@ export async function updateUsername(newUsername: string) {
   if (!/^[a-zA-Z0-9_]+$/.test(trimmed))
     return { error: "Only letters, numbers and underscores allowed." };
 
-  // Check uniqueness (exclude current user)
+  // Check uniqueness case-insensitively (exclude current user)
   const { data: existing } = await supabase
     .from("profiles")
     .select("id")
-    .eq("username", trimmed)
+    .ilike("username", trimmed)
     .neq("id", user.id)
     .maybeSingle();
 
