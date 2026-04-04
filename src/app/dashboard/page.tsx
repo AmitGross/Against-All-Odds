@@ -1,10 +1,26 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import LogoutButton from "@/components/auth/logout-button";
 import UsernameEditor from "./username-editor";
 import ProfileDetailsEditor from "./profile-details-editor";
+import WindowPicker from "./window-picker";
 
-export default async function DashboardPage() {
+const WINDOW_MS: Record<string, number> = {
+  "24h": 24 * 60 * 60 * 1000,
+  "2d":  2  * 24 * 60 * 60 * 1000,
+  "1w":  7  * 24 * 60 * 60 * 1000,
+  "1y":  365 * 24 * 60 * 60 * 1000, // QA only
+};
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ window?: string }>;
+}) {
+  const { window: windowParam } = await searchParams;
+  const windowKey = windowParam && WINDOW_MS[windowParam] ? windowParam : "24h";
+  const windowMs = WINDOW_MS[windowKey];
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -26,9 +42,9 @@ export default async function DashboardPage() {
 
   const totalPoints = (scoreRows ?? []).reduce((sum, r) => sum + (r.base_points ?? 0), 0);
 
-  // QA MODE: widened to 30 days — revert to 24 * 60 * 60 * 1000 after testing
+  // Matches starting within the chosen window
   const now = new Date();
-  const in24h = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const windowEnd = new Date(now.getTime() + windowMs);
 
   const { data: upcomingMatches } = await supabase
     .from("matches")
@@ -36,7 +52,7 @@ export default async function DashboardPage() {
     .eq("status", "scheduled")
     .eq("is_locked", false)
     .gt("starts_at", now.toISOString())
-    .lte("starts_at", in24h.toISOString());
+    .lte("starts_at", windowEnd.toISOString());
 
   const upcoming = upcomingMatches ?? [];
 
@@ -102,9 +118,12 @@ export default async function DashboardPage() {
 
       {/* ── Section 3: Prediction Reminder ── */}
       <section className="rounded-2xl border border-ink/10 bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-ink/40">
-          Upcoming Predictions
-        </h3>
+        <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-ink/40">Upcoming Predictions</h3>
+          <Suspense fallback={null}>
+            <WindowPicker current={windowKey} />
+          </Suspense>
+        </div>
         {missingMatches.length === 0 ? (
           <div className="flex items-center gap-3 rounded-xl bg-field/10 px-4 py-3">
             <span className="text-xl">✅</span>
@@ -112,8 +131,8 @@ export default async function DashboardPage() {
               <p className="text-sm font-semibold text-field">You&apos;re all caught up!</p>
               <p className="text-xs text-ink/50">
                 {upcoming.length === 0
-                  ? "No matches in the next 24 hours."
-                  : "All matches in the next 24 hours have predictions."}
+                  ? `No matches in the next ${windowKey === "24h" ? "24 hours" : windowKey === "2d" ? "2 days" : windowKey === "1w" ? "week" : "year"}.`
+                  : `All matches in the next ${windowKey === "24h" ? "24 hours" : windowKey === "2d" ? "2 days" : windowKey === "1w" ? "week" : "year"} have predictions.`}
               </p>
             </div>
           </div>
@@ -125,7 +144,7 @@ export default async function DashboardPage() {
                 <p className="text-sm font-semibold text-clay">
                   {missingMatches.length} match{missingMatches.length !== 1 ? "es" : ""} without a prediction!
                 </p>
-                <p className="text-xs text-ink/50">These matches kick off in the next 24 hours.</p>
+                <p className="text-xs text-ink/50">These matches kick off in the next {windowKey === "24h" ? "24 hours" : windowKey === "2d" ? "2 days" : windowKey === "1w" ? "week" : "year"}.</p>
               </div>
             </div>
             <ul className="space-y-1">
