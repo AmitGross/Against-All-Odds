@@ -1,8 +1,9 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 async function assertAdmin() {
   const supabase = await createServerSupabaseClient();
@@ -10,27 +11,27 @@ async function assertAdmin() {
   if (!user) redirect("/login");
   const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", user.id).single();
   if (!profile?.is_admin) throw new Error("Unauthorized");
-  return supabase;
 }
 
-async function awardPoints(supabase: Awaited<ReturnType<typeof assertAdmin>>, type: string, teamId: string | null, playerId: string | null) {
+async function awardPoints(type: string, teamId: string | null, playerId: string | null) {
+  const admin = createAdminClient();
   if (type === "winner" && teamId) {
-    const { error: e1 } = await supabase.from("global_predictions").update({ points_awarded: 10 }).eq("type", type).eq("team_id", teamId);
+    const { error: e1 } = await admin.from("global_predictions").update({ points_awarded: 10 }).eq("type", type).eq("team_id", teamId);
     if (e1) throw new Error(`Award correct picks failed: ${e1.message}`);
-    const { error: e2 } = await supabase.from("global_predictions").update({ points_awarded: 0 }).eq("type", type).neq("team_id", teamId);
+    const { error: e2 } = await admin.from("global_predictions").update({ points_awarded: 0 }).eq("type", type).neq("team_id", teamId);
     if (e2) throw new Error(`Zero wrong picks failed: ${e2.message}`);
   } else if ((type === "top_scorer" || type === "assist_leader") && playerId) {
-    const { error: e1 } = await supabase.from("global_predictions").update({ points_awarded: 10 }).eq("type", type).eq("player_id", playerId);
+    const { error: e1 } = await admin.from("global_predictions").update({ points_awarded: 10 }).eq("type", type).eq("player_id", playerId);
     if (e1) throw new Error(`Award correct picks failed: ${e1.message}`);
-    const { error: e2 } = await supabase.from("global_predictions").update({ points_awarded: 0 }).eq("type", type).neq("player_id", playerId);
+    const { error: e2 } = await admin.from("global_predictions").update({ points_awarded: 0 }).eq("type", type).neq("player_id", playerId);
     if (e2) throw new Error(`Zero wrong picks failed: ${e2.message}`);
   }
 }
 
-/** Set the correct answer, lock the prediction, and award points — all in one step. */
 export async function setAnswerAndLock(type: string, teamId: string | null, playerId: string | null): Promise<{ error?: string }> {
   try {
-    const supabase = await assertAdmin();
+    await assertAdmin();
+    const supabase = await createServerSupabaseClient();
 
     const { error: settingsError } = await supabase.from("global_prediction_settings").update({
       correct_team_id: teamId,
@@ -41,7 +42,7 @@ export async function setAnswerAndLock(type: string, teamId: string | null, play
 
     if (settingsError) return { error: `Settings update failed: ${settingsError.message}` };
 
-    await awardPoints(supabase, type, teamId, playerId);
+    await awardPoints(type, teamId, playerId);
 
     revalidatePath("/admin/global-predictions");
     revalidatePath("/dashboard");
@@ -51,9 +52,10 @@ export async function setAnswerAndLock(type: string, teamId: string | null, play
   }
 }
 
-/** Unlock so users can change their picks; clears points until re-locked. */
 export async function unlockPrediction(type: string) {
-  const supabase = await assertAdmin();
+  await assertAdmin();
+  const supabase = await createServerSupabaseClient();
+  const admin = createAdminClient();
 
   await supabase.from("global_prediction_settings").update({
     is_locked: false,
@@ -62,8 +64,7 @@ export async function unlockPrediction(type: string) {
     updated_at: new Date().toISOString(),
   }).eq("type", type);
 
-  // Reset all points for this type since the answer is being cleared
-  await supabase.from("global_predictions").update({ points_awarded: 0 }).eq("type", type);
+  await admin.from("global_predictions").update({ points_awarded: 0 }).eq("type", type);
 
   revalidatePath("/admin/global-predictions");
   revalidatePath("/dashboard");
