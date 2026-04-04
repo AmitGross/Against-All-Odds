@@ -41,6 +41,7 @@ function MatchCountdown({ match }: { match: MatchInfo }) {
 
   return (
     <div className="flex flex-col items-center gap-1">
+      {/* Flags row */}
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Home flag */}
         {match.home_team.flag_url ? (
@@ -67,11 +68,14 @@ function MatchCountdown({ match }: { match: MatchInfo }) {
         ) : (
           <span className="text-xs font-medium text-white/80">{match.away_team.name}</span>
         )}
-
-        <span className="ml-1 font-mono text-sm font-bold text-field tabular-nums">
-          {countdown ?? <span className="text-clay">LIVE</span>}
-        </span>
       </div>
+
+      {/* Countdown */}
+      <span className="font-mono text-sm font-bold text-field tabular-nums">
+        {countdown ?? <span className="text-clay">LIVE</span>}
+      </span>
+
+      {/* Match date/time */}
       <span className="text-white/40 text-xs">{formatMatchDateTime(match.starts_at)}</span>
     </div>
   );
