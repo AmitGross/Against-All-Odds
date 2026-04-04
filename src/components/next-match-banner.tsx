@@ -9,6 +9,13 @@ interface MatchInfo {
   away_team: { name: string; flag_url: string | null };
 }
 
+function formatMatchDateTime(iso: string) {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return `${date} · ${time}`;
+}
+
 function useCountdown(targetIso: string) {
   const [diff, setDiff] = useState(() => new Date(targetIso).getTime() - Date.now());
 
@@ -22,49 +29,50 @@ function useCountdown(targetIso: string) {
   if (diff <= 0) return null; // match started
 
   const totalSecs = Math.floor(diff / 1000);
-  const d = Math.floor(totalSecs / 86400);
-  const h = Math.floor((totalSecs % 86400) / 3600);
+  const totalHours = Math.floor(totalSecs / 3600);
   const m = Math.floor((totalSecs % 3600) / 60);
   const s = totalSecs % 60;
 
-  if (d > 0) return `${d}d ${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m`;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${totalHours}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
 }
 
 function MatchCountdown({ match }: { match: MatchInfo }) {
   const countdown = useCountdown(match.starts_at);
 
   return (
-    <div className="flex items-center gap-2 sm:gap-3">
-      {/* Home flag */}
-      {match.home_team.flag_url ? (
-        <img
-          src={match.home_team.flag_url}
-          alt={match.home_team.name}
-          title={match.home_team.name}
-          className="w-8 h-5 rounded-sm object-cover border border-white/20 shrink-0"
-        />
-      ) : (
-        <span className="text-xs font-medium text-white/80">{match.home_team.name}</span>
-      )}
+    <div className="flex flex-col items-center gap-1">
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Home flag */}
+        {match.home_team.flag_url ? (
+          <img
+            src={match.home_team.flag_url}
+            alt={match.home_team.name}
+            title={match.home_team.name}
+            className="w-8 h-5 rounded-sm object-cover border border-white/20 shrink-0"
+          />
+        ) : (
+          <span className="text-xs font-medium text-white/80">{match.home_team.name}</span>
+        )}
 
-      <span className="text-white/40 text-xs font-bold">vs</span>
+        <span className="text-white/40 text-xs font-bold">vs</span>
 
-      {/* Away flag */}
-      {match.away_team.flag_url ? (
-        <img
-          src={match.away_team.flag_url}
-          alt={match.away_team.name}
-          title={match.away_team.name}
-          className="w-8 h-5 rounded-sm object-cover border border-white/20 shrink-0"
-        />
-      ) : (
-        <span className="text-xs font-medium text-white/80">{match.away_team.name}</span>
-      )}
+        {/* Away flag */}
+        {match.away_team.flag_url ? (
+          <img
+            src={match.away_team.flag_url}
+            alt={match.away_team.name}
+            title={match.away_team.name}
+            className="w-8 h-5 rounded-sm object-cover border border-white/20 shrink-0"
+          />
+        ) : (
+          <span className="text-xs font-medium text-white/80">{match.away_team.name}</span>
+        )}
 
-      <span className="ml-1 font-mono text-sm font-bold text-field tabular-nums">
-        {countdown ?? <span className="text-clay">LIVE</span>}
-      </span>
+        <span className="ml-1 font-mono text-sm font-bold text-field tabular-nums">
+          {countdown ?? <span className="text-clay">LIVE</span>}
+        </span>
+      </div>
+      <span className="text-white/40 text-xs">{formatMatchDateTime(match.starts_at)}</span>
     </div>
   );
 }
