@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import LogoutButton from "@/components/auth/logout-button";
 import UsernameEditor from "./username-editor";
+import ProfileDetailsEditor from "./profile-details-editor";
 
 export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient();
@@ -13,15 +14,15 @@ export default async function DashboardPage() {
 
   const { data: profileRow } = await supabase
     .from("profiles")
-    .select("username, username_set, display_name")
+    .select("username, username_set, display_name, age, country")
     .eq("id", user.id)
     .single();
 
   const profile = {
     username: profileRow?.username ?? user.email ?? "unknown",
     usernameSet: profileRow?.username_set ?? false,
-    age: null as number | null,
-    country: null as string | null,
+    age: profileRow?.age ?? null,
+    country: profileRow?.country ?? null,
     totalPoints: 0,
   };
 
@@ -49,20 +50,7 @@ export default async function DashboardPage() {
             <UsernameEditor current={profile.username} isSet={profile.usernameSet} />
 
             {/* Age + Country row */}
-            <div className="flex flex-wrap gap-6">
-              <div>
-                <p className="text-xs text-ink/40">Age</p>
-                <p className="text-sm font-medium">
-                  {profile.age ?? <span className="text-ink/30 italic">Not set</span>}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-ink/40">Country</p>
-                <p className="text-sm font-medium">
-                  {profile.country ?? <span className="text-ink/30 italic">Not set</span>}
-                </p>
-              </div>
-            </div>
+            <ProfileDetailsEditor initialAge={profile.age} initialCountry={profile.country} />
           </div>
         </div>
       </section>
