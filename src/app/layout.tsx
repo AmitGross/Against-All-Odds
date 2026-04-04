@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import NavBar from "@/components/nav-bar";
+import CountdownBanner from "@/components/countdown-banner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,6 +26,9 @@ export default function RootLayout({
             <NavBar />
           </Suspense>
         </header>
+        <Suspense fallback={null}>
+          <CountdownBanner />
+        </Suspense>
         <main className="mx-auto max-w-4xl px-4 py-8">{children}</main>
       </body>
     </html>
