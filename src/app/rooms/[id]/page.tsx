@@ -69,8 +69,10 @@ export default async function RoomDetailPage({
     .eq("room_id", id);
 
   // Fetch global prediction points for members
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const adminClient = createAdminClient();
   const { data: globalPreds } = memberIds.length > 0
-    ? await supabase.from("global_predictions").select("user_id, points_awarded").in("user_id", memberIds)
+    ? await adminClient.from("global_predictions").select("user_id, points_awarded").in("user_id", memberIds)
     : { data: [] };
 
   // Aggregate standings

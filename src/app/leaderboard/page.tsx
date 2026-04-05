@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 
 interface ScoreRow {
@@ -14,9 +15,10 @@ export default async function LeaderboardPage() {
   } = await supabase.auth.getUser();
 
   // ── Global leaderboard ──
+  const admin = createAdminClient();
   const [{ data: scores }, { data: globalPredScores }] = await Promise.all([
     supabase.from("prediction_scores").select("user_id, global_points"),
-    supabase.from("global_predictions").select("user_id, points_awarded"),
+    admin.from("global_predictions").select("user_id, points_awarded"),
   ]);
 
   const userPoints = new Map<string, number>();
@@ -108,7 +110,7 @@ export default async function LeaderboardPage() {
         .eq("room_id", room.id);
 
       // Global prediction points for members
-      const { data: memberGlobalPreds } = await supabase
+      const { data: memberGlobalPreds } = await admin
         .from("global_predictions")
         .select("user_id, points_awarded")
         .in("user_id", memberIds);
