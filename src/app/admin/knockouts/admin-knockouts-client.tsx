@@ -146,6 +146,7 @@ export default function AdminKnockoutsClient({
     setMessage("");
     const slotA = slotMap[slotAId];
     const slotB = slotMap[slotBId];
+    try {
 
     const [resA, resB] = await Promise.all([
       supabase.from("knockout_slots").upsert(
@@ -226,6 +227,11 @@ export default function AdminKnockoutsClient({
     setSaving(null);
     setMessage(err ? `Error: ${err.message}` : "Saved! Winner advanced to next round.");
     setTimeout(() => setMessage(""), 3000);
+    } catch (e: unknown) {
+      setMessage(`Error: ${e instanceof Error ? e.message : "Unknown error"}`);
+    } finally {
+      setSaving(null);
+    }
   }
 
   return (

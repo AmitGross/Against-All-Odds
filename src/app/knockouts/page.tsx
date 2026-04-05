@@ -1,5 +1,5 @@
 ﻿import React from "react";
-import KnockoutPredictionsClient, { KnockoutMatch } from "./knockout-predictions-client";
+import KnockoutPredictionsClient, { KnockoutMatch, Prediction } from "./knockout-predictions-client";
 
 const H = 800;
 const CW = 90;
@@ -93,7 +93,7 @@ export default async function KnockoutsPage() {
   let leftRounds: string[][] = [];
   let rightRounds: string[][] = [];
   let matches: KnockoutMatch[] = [];
-  let userPredictions: Record<string, { teamId: string; pointsAwarded: number }> = {};
+  let userPredictions: Record<string, Prediction> = {};
 
   if (tournament) {
     const { data: slotsRaw } = await supabase
@@ -132,6 +132,8 @@ export default async function KnockoutsPage() {
               teamALabel: slotA.slot_label ?? `Slot ${slotA.position + 1}`,
               teamB: slotB.home_team ? { id: slotB.home_team_id!, ...slotB.home_team } : null,
               teamBLabel: slotB.slot_label ?? `Slot ${slotB.position + 1}`,
+              homeScore: slotA.home_score,
+              awayScore: slotA.away_score,
               winnerTeamId: slotA.winner_team_id,
             });
           }
@@ -151,6 +153,8 @@ export default async function KnockoutsPage() {
           teamALabel: leftFinal.slot_label ?? "Left finalist",
           teamB: rightFinal.home_team ? { id: rightFinal.home_team_id!, ...rightFinal.home_team } : null,
           teamBLabel: rightFinal.slot_label ?? "Right finalist",
+          homeScore: leftFinal.home_score,
+          awayScore: leftFinal.away_score,
           winnerTeamId: leftFinal.winner_team_id,
         });
       }
@@ -169,6 +173,8 @@ export default async function KnockoutsPage() {
           teamALabel: bronzeSlots[0].slot_label ?? "Bronze team 1",
           teamB: bronzeSlots[1].home_team ? { id: bronzeSlots[1].home_team_id!, ...bronzeSlots[1].home_team } : null,
           teamBLabel: bronzeSlots[1].slot_label ?? "Bronze team 2",
+          homeScore: bronzeSlots[0].home_score,
+          awayScore: bronzeSlots[0].away_score,
           winnerTeamId: bronzeSlots[0].winner_team_id,
         });
       }
@@ -178,14 +184,15 @@ export default async function KnockoutsPage() {
         const slotAIds = matches.map((m) => m.slotAId);
         const { data: preds } = await supabase
           .from("knockout_predictions")
-          .select("slot_id, predicted_team_id, points_awarded")
+          .select("slot_id, predicted_home_score, predicted_away_score, points_awarded")
           .eq("user_id", user.id)
           .in("slot_id", slotAIds);
 
         for (const p of preds ?? []) {
-          if (p.predicted_team_id) {
+          if (p.predicted_home_score != null && p.predicted_away_score != null) {
             userPredictions[p.slot_id] = {
-              teamId: p.predicted_team_id,
+              homeScore: p.predicted_home_score,
+              awayScore: p.predicted_away_score,
               pointsAwarded: p.points_awarded ?? 0,
             };
           }

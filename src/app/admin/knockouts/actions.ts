@@ -7,10 +7,10 @@ import { KNOCKOUT_POINTS } from "@/config/scoring";
 export async function scoreKnockoutPredictions(): Promise<{ error?: string; scored?: number }> {
   const supabase = createAdminClient();
 
-  // Get all "anchor" slots (even position within round+side) that have a declared winner
+  // Get all anchor slots that have a declared winner and scores
   const { data: slots, error: slotsError } = await supabase
     .from("knockout_slots")
-    .select("id, round, winner_team_id")
+    .select("id, round, home_team_id, home_score, away_score, winner_team_id")
     .not("winner_team_id", "is", null);
 
   if (slotsError) return { error: slotsError.message };
@@ -19,27 +19,47 @@ export async function scoreKnockoutPredictions(): Promise<{ error?: string; scor
   let totalScored = 0;
 
   for (const slot of slots) {
-    const pts = KNOCKOUT_POINTS[slot.round]?.outcome ?? 1;
+    const { exact: exactPts, outcome: outcomePts } = KNOCKOUT_POINTS[slot.round] ?? { exact: 3, outcome: 1 };
 
-    // Award pts to predictions that got it right
-    const { error: correctError } = await supabase
+    // Fetch all predictions for this slot
+    const { data: preds, error: predsError } = await supabase
       .from("knockout_predictions")
-      .update({ points_awarded: pts })
-      .eq("slot_id", slot.id)
-      .eq("predicted_team_id", slot.winner_team_id);
+      .select("id, predicted_home_score, predicted_away_score")
+      .eq("slot_id", slot.id);
 
-    if (correctError) return { error: correctError.message };
+    if (predsError) return { error: predsError.message };
+    if (!preds || preds.length === 0) continue;
 
-    // Zero out wrong predictions for this slot
-    const { error: wrongError } = await supabase
-      .from("knockout_predictions")
-      .update({ points_awarded: 0 })
-      .eq("slot_id", slot.id)
-      .neq("predicted_team_id", slot.winner_team_id);
+    // Did the home team (slotA team) actually win?
+    const actualHomeWins = slot.winner_team_id === slot.home_team_id;
 
-    if (wrongError) return { error: wrongError.message };
+    for (const pred of preds) {
+      if (pred.predicted_home_score == null || pred.predicted_away_score == null) continue;
 
-    totalScored += 1;
+      let pts = 0;
+
+      if (
+        slot.home_score != null &&
+        slot.away_score != null &&
+        pred.predicted_home_score === slot.home_score &&
+        pred.predicted_away_score === slot.away_score
+      ) {
+        pts = exactPts;
+      } else {
+        const predHomeWins = pred.predicted_home_score > pred.predicted_away_score;
+        const predAwayWins = pred.predicted_away_score > pred.predicted_home_score;
+        if ((actualHomeWins && predHomeWins) || (!actualHomeWins && predAwayWins)) {
+          pts = outcomePts;
+        }
+      }
+
+      await supabase
+        .from("knockout_predictions")
+        .update({ points_awarded: pts })
+        .eq("id", pred.id);
+
+      if (pts > 0) totalScored++;
+    }
   }
 
   revalidatePath("/admin/knockouts");
