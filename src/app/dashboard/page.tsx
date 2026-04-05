@@ -36,12 +36,12 @@ export default async function DashboardPage({
 
   // Sum all scored points for this user
   const [{ data: scoreRows }, { data: globalScoreRows }, { data: knockoutScoreRows }] = await Promise.all([
-    supabase.from("prediction_scores").select("base_points").eq("user_id", user.id),
+    supabase.from("prediction_scores").select("global_points").eq("user_id", user.id),
     supabase.from("global_predictions").select("points_awarded").eq("user_id", user.id),
     supabase.from("knockout_predictions").select("points_awarded").eq("user_id", user.id),
   ]);
 
-  const matchPoints = (scoreRows ?? []).reduce((sum, r) => sum + (r.base_points ?? 0), 0);
+  const matchPoints = (scoreRows ?? []).reduce((sum, r) => sum + (r.global_points ?? 0), 0);
   const globalPoints = (globalScoreRows ?? []).reduce((sum, r) => sum + (r.points_awarded ?? 0), 0);
   const knockoutPoints = (knockoutScoreRows ?? []).reduce((sum, r) => sum + (r.points_awarded ?? 0), 0);
   const totalPoints = matchPoints + globalPoints + knockoutPoints;

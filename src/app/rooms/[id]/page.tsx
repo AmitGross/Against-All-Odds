@@ -58,7 +58,7 @@ export default async function RoomDetailPage({
     memberIds.length > 0
       ? await supabase
           .from("prediction_scores")
-          .select("user_id, base_points")
+          .select("user_id, global_points")
           .in("user_id", memberIds)
       : { data: [] };
 
@@ -85,7 +85,7 @@ export default async function RoomDetailPage({
   }
   for (const s of scores ?? []) {
     const entry = standings.get(s.user_id);
-    if (entry) entry.base += s.base_points;
+    if (entry) entry.base += s.global_points;
   }
   for (const b of bonuses ?? []) {
     const entry = standings.get(b.user_id);
