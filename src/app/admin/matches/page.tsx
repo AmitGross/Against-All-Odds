@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import MatchResultForm from "./match-result-form";
+import ResetMatchesButton from "./reset-matches-button";
 
 interface MatchRow {
   id: string;
@@ -66,6 +67,8 @@ export default async function AdminMatchesPage() {
           {finished}/{total} matches finalized
         </p>
       </div>
+
+      <ResetMatchesButton />
 
       {Object.entries(grouped).map(([date, dayMatches]) => (
         <section key={date}>

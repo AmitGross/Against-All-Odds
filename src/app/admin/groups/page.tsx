@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import AdminGroupLocksClient from "./admin-group-locks-client";
+import ResetGroupLocksButton from "./reset-group-locks-button";
 
 export default async function AdminGroupsPage() {
   const supabase = await createServerSupabaseClient();
@@ -40,6 +41,7 @@ export default async function AdminGroupsPage() {
       <p className="text-sm text-ink/60">
         Lock a group to prevent users from changing their predictions.
       </p>
+      <ResetGroupLocksButton />
       <AdminGroupLocksClient
         tournamentId={tournament.id}
         groupNames={groupNames}

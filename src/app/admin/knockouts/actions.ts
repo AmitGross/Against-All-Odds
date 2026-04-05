@@ -68,3 +68,36 @@ export async function scoreKnockoutPredictions(): Promise<{ error?: string; scor
 
   return { scored: totalScored };
 }
+
+export async function resetKnockouts(): Promise<{ error?: string }> {
+  const supabase = createAdminClient();
+
+  // Clear all teams, scores and winners from slots
+  const { error: slotsErr } = await supabase
+    .from("knockout_slots")
+    .update({
+      home_team_id: null,
+      away_team_id: null,
+      home_score: null,
+      away_score: null,
+      winner_team_id: null,
+    })
+    .neq("id", "00000000-0000-0000-0000-000000000000"); // update all rows
+
+  if (slotsErr) return { error: slotsErr.message };
+
+  // Reset all knockout prediction points
+  const { error: predsErr } = await supabase
+    .from("knockout_predictions")
+    .update({ points_awarded: 0 })
+    .neq("id", "00000000-0000-0000-0000-000000000000");
+
+  if (predsErr) return { error: predsErr.message };
+
+  revalidatePath("/admin/knockouts");
+  revalidatePath("/knockouts");
+  revalidatePath("/dashboard");
+  revalidatePath("/leaderboard");
+
+  return {};
+}

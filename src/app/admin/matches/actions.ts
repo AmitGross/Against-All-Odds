@@ -267,3 +267,44 @@ export async function unfinalizeMatch(
   revalidatePath("/leaderboard");
   return {};
 }
+
+export async function resetMatches(): Promise<{ error?: string }> {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+  const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", user.id).single();
+  if (!profile?.is_admin) return { error: "Not authorized" };
+
+  const admin = createAdminClient();
+
+  // Reset all group-stage match results back to scheduled
+  const { error: matchErr } = await admin
+    .from("matches")
+    .update({ status: "scheduled", is_locked: false, home_score_90: null, away_score_90: null })
+    .eq("stage", "group");
+
+  if (matchErr) return { error: matchErr.message };
+
+  // Clear all prediction scores
+  const { error: scoresErr } = await admin
+    .from("prediction_scores")
+    .delete()
+    .neq("id", "00000000-0000-0000-0000-000000000000");
+
+  if (scoresErr) return { error: scoresErr.message };
+
+  // Clear room outlier bonuses
+  const { error: bonusErr } = await admin
+    .from("room_prediction_bonuses")
+    .delete()
+    .neq("id", "00000000-0000-0000-0000-000000000000");
+
+  if (bonusErr) return { error: bonusErr.message };
+
+  revalidatePath("/admin/matches");
+  revalidatePath("/matches");
+  revalidatePath("/leaderboard");
+  revalidatePath("/dashboard");
+
+  return {};
+}
