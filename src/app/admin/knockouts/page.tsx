@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import AdminKnockoutsClient from "./admin-knockouts-client";
+import ScoreKnockoutsButton from "./score-knockouts-button";
 
 // The bracket structure from the image
 const LEFT_SLOTS = [
@@ -140,6 +141,7 @@ export default async function AdminKnockoutsPage() {
       <p className="text-sm text-ink/60">
         Fill in teams, scores, and winners for each knockout slot. The bracket will update automatically.
       </p>
+      <ScoreKnockoutsButton />
       <AdminKnockoutsClient
         tournamentId={tournament.id}
         initialSlots={(slots ?? []) as Parameters<typeof AdminKnockoutsClient>[0]["initialSlots"]}

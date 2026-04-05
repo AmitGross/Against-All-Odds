@@ -71,9 +71,12 @@ export default async function RoomDetailPage({
   // Fetch global prediction points for members
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const adminClient = createAdminClient();
-  const { data: globalPreds } = memberIds.length > 0
-    ? await adminClient.from("global_predictions").select("user_id, points_awarded").in("user_id", memberIds)
-    : { data: [] };
+  const [{ data: globalPreds }, { data: knockoutPreds }] = memberIds.length > 0
+    ? await Promise.all([
+        adminClient.from("global_predictions").select("user_id, points_awarded").in("user_id", memberIds),
+        adminClient.from("knockout_predictions").select("user_id, points_awarded").in("user_id", memberIds),
+      ])
+    : [{ data: [] }, { data: [] }];
 
   // Aggregate standings
   const standings = new Map<string, { base: number; bonus: number; global: number }>();
@@ -91,6 +94,10 @@ export default async function RoomDetailPage({
   for (const g of globalPreds ?? []) {
     const entry = standings.get(g.user_id);
     if (entry) entry.global += g.points_awarded;
+  }
+  for (const k of knockoutPreds ?? []) {
+    const entry = standings.get(k.user_id);
+    if (entry) entry.global += k.points_awarded;
   }
 
   const profileMap = new Map(

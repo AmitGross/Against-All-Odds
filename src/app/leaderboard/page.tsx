@@ -16,9 +16,10 @@ export default async function LeaderboardPage() {
 
   // ── Global leaderboard ──
   const admin = createAdminClient();
-  const [{ data: scores }, { data: globalPredScores }] = await Promise.all([
+  const [{ data: scores }, { data: globalPredScores }, { data: knockoutPredScores }] = await Promise.all([
     supabase.from("prediction_scores").select("user_id, global_points"),
     admin.from("global_predictions").select("user_id, points_awarded"),
+    admin.from("knockout_predictions").select("user_id, points_awarded"),
   ]);
 
   const userPoints = new Map<string, number>();
@@ -32,6 +33,12 @@ export default async function LeaderboardPage() {
     userPoints.set(
       g.user_id,
       (userPoints.get(g.user_id) ?? 0) + g.points_awarded
+    );
+  }
+  for (const k of (knockoutPredScores ?? []) as { user_id: string; points_awarded: number }[]) {
+    userPoints.set(
+      k.user_id,
+      (userPoints.get(k.user_id) ?? 0) + k.points_awarded
     );
   }
 
