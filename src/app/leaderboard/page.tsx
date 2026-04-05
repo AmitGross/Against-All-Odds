@@ -107,7 +107,7 @@ export default async function LeaderboardPage() {
       // Base scores for members
       const { data: memberScores } = await supabase
         .from("prediction_scores")
-        .select("user_id, base_points")
+        .select("user_id, global_points")
         .in("user_id", memberIds);
 
       // Bonuses for this room
@@ -116,17 +116,17 @@ export default async function LeaderboardPage() {
         .select("user_id, bonus_points")
         .eq("room_id", room.id);
 
-      // Global prediction points for members
-      const { data: memberGlobalPreds } = await admin
-        .from("global_predictions")
-        .select("user_id, points_awarded")
-        .in("user_id", memberIds);
+      // Global + knockout prediction points for members
+      const [{ data: memberGlobalPreds }, { data: memberKnockoutPreds }] = await Promise.all([
+        admin.from("global_predictions").select("user_id, points_awarded").in("user_id", memberIds),
+        admin.from("knockout_predictions").select("user_id, points_awarded").in("user_id", memberIds),
+      ]);
 
       const pts = new Map<string, { base: number; bonus: number; global: number }>();
       for (const uid of memberIds) pts.set(uid, { base: 0, bonus: 0, global: 0 });
       for (const s of memberScores ?? []) {
         const e = pts.get(s.user_id);
-        if (e) e.base += s.base_points;
+        if (e) e.base += s.global_points;
       }
       for (const b of bonuses ?? []) {
         const e = pts.get(b.user_id);
@@ -135,6 +135,10 @@ export default async function LeaderboardPage() {
       for (const g of memberGlobalPreds ?? []) {
         const e = pts.get(g.user_id);
         if (e) e.global += g.points_awarded;
+      }
+      for (const k of memberKnockoutPreds ?? []) {
+        const e = pts.get(k.user_id);
+        if (e) e.global += k.points_awarded;
       }
 
       const memberProfileMap = new Map(
