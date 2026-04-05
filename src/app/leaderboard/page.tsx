@@ -14,15 +14,22 @@ export default async function LeaderboardPage() {
   } = await supabase.auth.getUser();
 
   // ── Global leaderboard ──
-  const { data: scores } = await supabase
-    .from("prediction_scores")
-    .select("user_id, global_points");
+  const [{ data: scores }, { data: globalPredScores }] = await Promise.all([
+    supabase.from("prediction_scores").select("user_id, global_points"),
+    supabase.from("global_predictions").select("user_id, points_awarded"),
+  ]);
 
   const userPoints = new Map<string, number>();
   for (const s of (scores ?? []) as ScoreRow[]) {
     userPoints.set(
       s.user_id,
       (userPoints.get(s.user_id) ?? 0) + s.global_points
+    );
+  }
+  for (const g of (globalPredScores ?? []) as { user_id: string; points_awarded: number }[]) {
+    userPoints.set(
+      g.user_id,
+      (userPoints.get(g.user_id) ?? 0) + g.points_awarded
     );
   }
 
@@ -100,8 +107,14 @@ export default async function LeaderboardPage() {
         .select("user_id, bonus_points")
         .eq("room_id", room.id);
 
-      const pts = new Map<string, { base: number; bonus: number }>();
-      for (const uid of memberIds) pts.set(uid, { base: 0, bonus: 0 });
+      // Global prediction points for members
+      const { data: memberGlobalPreds } = await supabase
+        .from("global_predictions")
+        .select("user_id, points_awarded")
+        .in("user_id", memberIds);
+
+      const pts = new Map<string, { base: number; bonus: number; global: number }>();
+      for (const uid of memberIds) pts.set(uid, { base: 0, bonus: 0, global: 0 });
       for (const s of memberScores ?? []) {
         const e = pts.get(s.user_id);
         if (e) e.base += s.base_points;
@@ -109,6 +122,10 @@ export default async function LeaderboardPage() {
       for (const b of bonuses ?? []) {
         const e = pts.get(b.user_id);
         if (e) e.bonus += b.bonus_points;
+      }
+      for (const g of memberGlobalPreds ?? []) {
+        const e = pts.get(g.user_id);
+        if (e) e.global += g.points_awarded;
       }
 
       const memberProfileMap = new Map(
@@ -124,7 +141,7 @@ export default async function LeaderboardPage() {
           name: memberProfileMap.get(userId) ?? "Unknown",
           base: p.base,
           bonus: p.bonus,
-          total: p.base + p.bonus,
+          total: p.base + p.bonus + p.global,
         }))
         .sort((a, b) => b.total - a.total);
 

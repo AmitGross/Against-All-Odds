@@ -68,13 +68,15 @@ export default async function RoomDetailPage({
     .select("user_id, bonus_points")
     .eq("room_id", id);
 
+  // Fetch global prediction points for members
+  const { data: globalPreds } = memberIds.length > 0
+    ? await supabase.from("global_predictions").select("user_id, points_awarded").in("user_id", memberIds)
+    : { data: [] };
+
   // Aggregate standings
-  const standings = new Map<
-    string,
-    { base: number; bonus: number }
-  >();
+  const standings = new Map<string, { base: number; bonus: number; global: number }>();
   for (const uid of memberIds) {
-    standings.set(uid, { base: 0, bonus: 0 });
+    standings.set(uid, { base: 0, bonus: 0, global: 0 });
   }
   for (const s of scores ?? []) {
     const entry = standings.get(s.user_id);
@@ -83,6 +85,10 @@ export default async function RoomDetailPage({
   for (const b of bonuses ?? []) {
     const entry = standings.get(b.user_id);
     if (entry) entry.bonus += b.bonus_points;
+  }
+  for (const g of globalPreds ?? []) {
+    const entry = standings.get(g.user_id);
+    if (entry) entry.global += g.points_awarded;
   }
 
   const profileMap = new Map(
@@ -102,7 +108,7 @@ export default async function RoomDetailPage({
       ...profileMap.get(userId)!,
       base: pts.base,
       bonus: pts.bonus,
-      total: pts.base + pts.bonus,
+      total: pts.base + pts.bonus + pts.global,
     }))
     .sort((a, b) => b.total - a.total);
 
