@@ -18,11 +18,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen">
-        <header className="flex items-center justify-between border-b border-ink/10 px-6 py-4">
+        <header className="relative flex items-center justify-between border-b border-ink/10 px-4 py-3 sm:px-6 sm:py-4">
           <Link href="/" className="text-lg font-bold">
             World Cup Predictor
           </Link>
-          <Suspense fallback={<nav className="flex items-center gap-4 text-sm"><span className="text-ink/30">Loading…</span></nav>}>
+          <Suspense fallback={<div className="w-8 h-8" />}>
             <NavBar />
           </Suspense>
         </header>

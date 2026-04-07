@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import Link from "next/link";
+import NavLinks from "./nav-links";
 
 export default async function NavBar() {
   let isAdmin = false;
@@ -24,57 +24,5 @@ export default async function NavBar() {
     // ignore — render without admin link
   }
 
-  return (
-    <nav className="flex items-center gap-4 text-sm">
-      <Link href="/" className="hover:underline">
-        Home
-      </Link>
-      <Link href="/dashboard" className="hover:underline">
-        Dashboard
-      </Link>
-      <Link href="/rooms" className="hover:underline">
-        Rooms
-      </Link>
-      <Link href="/matches" className="hover:underline">
-        Matches
-      </Link>
-      <Link href="/groups" className="hover:underline">
-        Groups
-      </Link>
-      <Link href="/leaderboard" className="hover:underline">
-        Leaderboard
-      </Link>
-      <Link href="/knockouts" className="hover:underline">
-        Knockouts
-      </Link>
-      {isAdmin && (
-        <>
-          <Link
-            href="/admin/matches"
-            className="rounded bg-clay/10 px-2 py-0.5 text-clay hover:bg-clay/20"
-          >
-            Admin Matches
-          </Link>
-          <Link
-            href="/admin/knockouts"
-            className="rounded bg-clay/10 px-2 py-0.5 text-clay hover:bg-clay/20"
-          >
-            Admin Knockouts
-          </Link>
-          <Link
-            href="/admin/groups"
-            className="rounded bg-clay/10 px-2 py-0.5 text-clay hover:bg-clay/20"
-          >
-            Admin Groups
-          </Link>
-          <Link
-            href="/admin/global-predictions"
-            className="rounded bg-clay/10 px-2 py-0.5 text-clay hover:bg-clay/20"
-          >
-            Admin Global
-          </Link>
-        </>
-      )}
-    </nav>
-  );
+  return <NavLinks isAdmin={isAdmin} loggedIn={loggedIn} />;
 }
