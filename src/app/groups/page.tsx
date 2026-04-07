@@ -136,7 +136,7 @@ export default async function GroupsPage() {
   }
 
   return (
-    <div className="space-y-8 px-4 py-6 max-w-3xl mx-auto">
+    <div className="space-y-8">
       <h1 className="text-2xl font-extrabold tracking-wide">Group Standings</h1>
       {groupNames.map((g) => {
         const rows = standings[g];

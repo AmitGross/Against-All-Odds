@@ -172,7 +172,7 @@ export default async function LeaderboardPage() {
             No scores yet. Scores appear after matches are finalized.
           </p>
         ) : (
-          <div className="mt-4 overflow-hidden rounded-lg border border-ink/10">
+          <div className="mt-4 overflow-x-auto rounded-lg border border-ink/10">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-ink/10 bg-ink/5 text-left">
@@ -220,7 +220,7 @@ export default async function LeaderboardPage() {
                 </Link>
               </div>
               {room.entries.some((e) => e.total > 0) ? (
-                <div className="overflow-hidden rounded-lg border border-ink/10">
+                <div className="overflow-x-auto rounded-lg border border-ink/10">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-ink/10 bg-ink/5 text-left">
