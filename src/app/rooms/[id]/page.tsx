@@ -97,8 +97,8 @@ export default async function RoomDetailPage({
   for (const s of scores ?? []) {
     const entry = standings.get(s.user_id);
     if (!entry) continue;
-    const pred = s.predictions as { predicted_home_score_90: number; predicted_away_score_90: number };
-    const match = s.matches as { home_score_90: number | null; away_score_90: number | null };
+    const pred = s.predictions as unknown as { predicted_home_score_90: number; predicted_away_score_90: number };
+    const match = s.matches as unknown as { home_score_90: number | null; away_score_90: number | null };
     if (match.home_score_90 !== null && match.away_score_90 !== null) {
       const isExact =
         pred.predicted_home_score_90 === match.home_score_90 &&
