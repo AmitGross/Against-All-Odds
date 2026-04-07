@@ -100,7 +100,7 @@ export default function GroupPredictionForm({
         <div className="flex flex-col gap-1">
           <label className="text-xs text-field font-medium">Group Winner</label>
           <select
-            className="rounded border border-ink/20 px-2 py-1 text-sm bg-white min-w-[140px]"
+            className="rounded border border-ink/20 px-2 py-1 text-sm bg-white w-full sm:min-w-[140px]"
             value={first}
             onChange={(e) => { setFirst(e.target.value); setSaved(false); }}
           >

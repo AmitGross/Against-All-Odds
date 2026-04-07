@@ -109,12 +109,12 @@ export default async function MatchesPage() {
                       locked={isLocked}
                     />
                   ) : (
-                    <div className="flex flex-1 items-center justify-center gap-3 text-sm">
-                      <span className="w-36 text-right font-medium flex items-center gap-2 justify-end">
+                    <div className="flex flex-1 items-center justify-center gap-1 sm:gap-2 text-sm min-w-0">
+                      <span className="flex-1 text-right font-medium flex items-center gap-1 justify-end min-w-0 truncate">
                         {m.home_team.flag_url && (
-                          <img src={m.home_team.flag_url} alt={m.home_team.code + ' flag'} className="inline-block w-8 h-5 rounded border border-ink/10" />
+                          <img src={m.home_team.flag_url} alt={m.home_team.code + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />
                         )}
-                        {m.home_team.name}
+                        <span className="truncate text-xs sm:text-sm">{m.home_team.name}</span>
                       </span>
 
                       {m.status === "finished" ? (
@@ -133,13 +133,13 @@ export default async function MatchesPage() {
                         </span>
                       )}
 
-                      <span className="w-36 font-medium flex items-center gap-2">
+                      <span className="flex-1 font-medium flex items-center gap-1 min-w-0 truncate">
                         {m.away_team.flag_url && (
-                          <img src={m.away_team.flag_url} alt={m.away_team.code + ' flag'} className="inline-block w-8 h-5 rounded border border-ink/10" />
+                          <img src={m.away_team.flag_url} alt={m.away_team.code + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />
                         )}
-                        {m.away_team.name}
+                        <span className="truncate text-xs sm:text-sm">{m.away_team.name}</span>
                       </span>
-                      <span className="ml-2 text-xs text-ink/30">Log in to predict</span>
+                      <span className="ml-1 text-xs text-ink/30 shrink-0">Log in</span>
                     </div>
                   )}
                 </div>

@@ -152,7 +152,8 @@ export default async function GroupsPage() {
             </div>
 
             {/* Standings table */}
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[340px]">
               <thead>
                 <tr className="bg-ink/10 text-ink/50 text-xs uppercase">
                   <th className="text-left px-3 py-2 w-full">Team</th>
@@ -202,6 +203,7 @@ export default async function GroupsPage() {
                 })}
               </tbody>
             </table>
+            </div>
 
             {/* Prediction section */}
             <GroupPredictionForm

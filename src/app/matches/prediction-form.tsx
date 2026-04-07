@@ -111,33 +111,33 @@ export default function PredictionForm({
 
   if (locked) {
     return (
-      <div className="flex flex-1 items-center justify-center gap-2 text-sm">
-        <span className="w-36 text-right font-medium flex items-center gap-2 justify-end">
+      <div className="flex flex-1 items-center justify-center gap-1 sm:gap-2 text-sm min-w-0">
+        <span className="flex-1 text-right font-medium flex items-center gap-1 justify-end min-w-0 truncate">
           {homeFlagUrl && (
-            <img src={homeFlagUrl} alt={homeCode + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+            <img src={homeFlagUrl} alt={homeCode + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />
           )}
-          {homeTeamName}
+          <span className="truncate text-xs sm:text-sm">{homeTeamName}</span>
         </span>
         {existingPrediction ? (
-          <span className="mx-1 rounded bg-field/10 px-2 py-0.5 text-xs font-semibold text-field">
+          <span className="mx-1 rounded bg-field/10 px-2 py-0.5 text-xs font-semibold text-field shrink-0">
             {existingPrediction.predicted_home_score_90}
           </span>
         ) : (
-          <span className="w-7" />
+          <span className="w-5 shrink-0" />
         )}
         {centerElement}
         {existingPrediction ? (
-          <span className="mx-1 rounded bg-field/10 px-2 py-0.5 text-xs font-semibold text-field">
+          <span className="mx-1 rounded bg-field/10 px-2 py-0.5 text-xs font-semibold text-field shrink-0">
             {existingPrediction.predicted_away_score_90}
           </span>
         ) : (
-          <span className="w-7" />
+          <span className="w-5 shrink-0" />
         )}
-        <span className="w-36 font-medium flex items-center gap-2">
+        <span className="flex-1 font-medium flex items-center gap-1 min-w-0 truncate">
           {awayFlagUrl && (
-            <img src={awayFlagUrl} alt={awayCode + ' flag'} className="inline-block w-5 h-5 rounded-sm border border-ink/10" />
+            <img src={awayFlagUrl} alt={awayCode + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />
           )}
-          {awayTeamName}
+          <span className="truncate text-xs sm:text-sm">{awayTeamName}</span>
         </span>
       </div>
     );
@@ -146,13 +146,13 @@ export default function PredictionForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-1 items-center justify-center gap-2 text-sm"
+      className="flex flex-1 items-center justify-center gap-1 sm:gap-2 text-sm min-w-0"
     >
-      <span className="w-36 text-right font-medium flex items-center gap-2 justify-end">
+      <span className="flex-1 text-right font-medium flex items-center gap-1 justify-end min-w-0 truncate">
         {homeFlagUrl && (
-          <img src={homeFlagUrl} alt={homeCode + ' flag'} className="inline-block w-8 h-5 rounded border border-ink/10" />
+          <img src={homeFlagUrl} alt={homeCode + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />
         )}
-        {homeTeamName}
+        <span className="truncate text-xs sm:text-sm">{homeTeamName}</span>
       </span>
       <input
         type="number"
@@ -181,11 +181,11 @@ export default function PredictionForm({
         className="w-10 rounded border border-ink/20 px-1 py-0.5 text-center text-xs font-semibold focus:border-field focus:outline-none"
         aria-label={`${awayCode} score prediction`}
       />
-      <span className="w-36 font-medium flex items-center gap-2">
+      <span className="flex-1 font-medium flex items-center gap-1 min-w-0 truncate">
         {awayFlagUrl && (
-          <img src={awayFlagUrl} alt={awayCode + ' flag'} className="inline-block w-8 h-5 rounded border border-ink/10" />
+          <img src={awayFlagUrl} alt={awayCode + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />
         )}
-        {awayTeamName}
+        <span className="truncate text-xs sm:text-sm">{awayTeamName}</span>
       </span>
       <button
         type="submit"
