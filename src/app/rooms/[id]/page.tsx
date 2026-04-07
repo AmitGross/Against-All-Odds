@@ -78,7 +78,10 @@ export default async function RoomDetailPage({
   const [{ data: globalPreds }, { data: knockoutPreds }] = memberIds.length > 0
     ? await Promise.all([
         adminClient.from("global_predictions").select("user_id, points_awarded").in("user_id", memberIds),
-        adminClient.from("knockout_predictions").select("user_id, points_awarded").in("user_id", memberIds),
+        adminClient
+          .from("knockout_predictions")
+          .select("user_id, points_awarded, predicted_home_score, predicted_away_score, knockout_slots!inner(home_score, away_score, winner_team_id, home_team_id)")
+          .in("user_id", memberIds),
       ])
     : [{ data: [] }, { data: [] }];
 
@@ -123,7 +126,24 @@ export default async function RoomDetailPage({
   }
   for (const k of knockoutPreds ?? []) {
     const entry = standings.get(k.user_id);
-    if (entry) entry.globalBonus += k.points_awarded;
+    if (!entry) continue;
+    const slot = k.knockout_slots as unknown as {
+      home_score: number | null;
+      away_score: number | null;
+      winner_team_id: string | null;
+      home_team_id: string | null;
+    };
+    if (slot.home_score !== null && slot.away_score !== null && k.predicted_home_score != null && k.predicted_away_score != null) {
+      const isExact = k.predicted_home_score === slot.home_score && k.predicted_away_score === slot.away_score;
+      if (isExact) {
+        entry.exact += 1;
+      } else if (k.points_awarded > 0) {
+        entry.direction += 1;
+      } else {
+        entry.wrong += 1;
+      }
+    }
+    entry.pts += k.points_awarded;
   }
 
   const profileMap = new Map(

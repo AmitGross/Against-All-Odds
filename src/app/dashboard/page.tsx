@@ -130,11 +130,11 @@ export default async function DashboardPage({
         </div>
         <div className="flex flex-wrap gap-4 text-sm">
           <div className="flex flex-col items-center rounded-xl bg-ink/5 px-4 py-2 min-w-[80px]">
-            <span className="text-lg font-bold">{matchPoints}</span>
+            <span className="text-lg font-bold">{matchPoints + knockoutPoints}</span>
             <span className="text-xs text-ink/40 mt-0.5">Match Pts</span>
           </div>
           <div className="flex flex-col items-center rounded-xl bg-field/10 px-4 py-2 min-w-[80px]">
-            <span className="text-lg font-bold text-field">{globalPoints + knockoutPoints}</span>
+            <span className="text-lg font-bold text-field">{globalPoints}</span>
             <span className="text-xs text-ink/40 mt-0.5">Global Bonus</span>
           </div>
         </div>
