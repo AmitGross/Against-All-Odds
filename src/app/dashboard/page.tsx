@@ -124,11 +124,21 @@ export default async function DashboardPage({
       {/* ── Section 2: Score Card ── */}
       <section className="rounded-2xl border border-ink/10 bg-white p-6 shadow-sm">
         <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-ink/40">My Score</h3>
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-2 mb-4">
           <span className="text-5xl font-black text-field">{profile.totalPoints}</span>
-          <span className="mb-1 text-sm text-ink/40">points</span>
+          <span className="mb-1 text-sm text-ink/40">total points</span>
         </div>
-        <p className="mt-1 text-xs text-ink/40">Updates after each match is finalized by the admin.</p>
+        <div className="flex flex-wrap gap-4 text-sm">
+          <div className="flex flex-col items-center rounded-xl bg-ink/5 px-4 py-2 min-w-[80px]">
+            <span className="text-lg font-bold">{matchPoints}</span>
+            <span className="text-xs text-ink/40 mt-0.5">Match Pts</span>
+          </div>
+          <div className="flex flex-col items-center rounded-xl bg-field/10 px-4 py-2 min-w-[80px]">
+            <span className="text-lg font-bold text-field">{globalPoints + knockoutPoints}</span>
+            <span className="text-xs text-ink/40 mt-0.5">Global Bonus</span>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-ink/40">Updates after each match is finalized by the admin.</p>
       </section>
 
       {/* ── Section 3: Prediction Reminder ── */}

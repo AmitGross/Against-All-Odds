@@ -88,11 +88,11 @@ export default async function RoomDetailPage({
     direction: number;
     wrong: number;
     pts: number;
+    globalBonus: number;
     roomBonus: number;
-    extraPts: number;
   }>();
   for (const uid of memberIds) {
-    standings.set(uid, { exact: 0, direction: 0, wrong: 0, pts: 0, roomBonus: 0, extraPts: 0 });
+    standings.set(uid, { exact: 0, direction: 0, wrong: 0, pts: 0, globalBonus: 0, roomBonus: 0 });
   }
   for (const s of scores ?? []) {
     const entry = standings.get(s.user_id);
@@ -119,11 +119,11 @@ export default async function RoomDetailPage({
   }
   for (const g of globalPreds ?? []) {
     const entry = standings.get(g.user_id);
-    if (entry) entry.extraPts += g.points_awarded;
+    if (entry) entry.globalBonus += g.points_awarded;
   }
   for (const k of knockoutPreds ?? []) {
     const entry = standings.get(k.user_id);
-    if (entry) entry.extraPts += k.points_awarded;
+    if (entry) entry.globalBonus += k.points_awarded;
   }
 
   const profileMap = new Map(
@@ -145,8 +145,9 @@ export default async function RoomDetailPage({
       direction: s.direction,
       wrong: s.wrong,
       pts: s.pts,
+      globalBonus: s.globalBonus,
       roomBonus: s.roomBonus,
-      total: s.pts + s.roomBonus + s.extraPts,
+      total: s.pts + s.globalBonus + s.roomBonus,
     }))
     .sort((a, b) => b.total - a.total);
 
@@ -193,7 +194,8 @@ export default async function RoomDetailPage({
                   <th className="px-3 py-2 text-center" title="Correct direction">✓</th>
                   <th className="px-3 py-2 text-center" title="Wrong direction">✗</th>
                   <th className="px-3 py-2 text-right">Pts</th>
-                  <th className="px-3 py-2 text-right">+Bonus</th>
+                  <th className="px-3 py-2 text-right">Global Bonus</th>
+                  <th className="px-3 py-2 text-right">Room Bonus</th>
                   <th className="px-3 py-2 text-right font-bold text-ink">Total</th>
                 </tr>
               </thead>
@@ -216,6 +218,9 @@ export default async function RoomDetailPage({
                     <td className="px-3 py-2 text-center text-green-600">{s.direction}</td>
                     <td className="px-3 py-2 text-center text-red-400">{s.wrong}</td>
                     <td className="px-3 py-2 text-right">{s.pts}</td>
+                    <td className="px-3 py-2 text-right text-field">
+                      {s.globalBonus > 0 ? `+${s.globalBonus}` : "—"}
+                    </td>
                     <td className="px-3 py-2 text-right text-clay">
                       {s.roomBonus > 0 ? `+${s.roomBonus}` : "—"}
                     </td>
