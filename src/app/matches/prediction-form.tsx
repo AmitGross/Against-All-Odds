@@ -112,34 +112,36 @@ export default function PredictionForm({
   if (locked) {
     return (
       <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-center gap-1 sm:gap-2 text-sm min-w-0">
-        {/* Mobile: stacked layout */}
-        <div className="flex sm:hidden items-center justify-between w-full gap-2">
-          <span className="flex items-center gap-1.5 font-medium min-w-0">
-            {homeFlagUrl && <img src={homeFlagUrl} alt={homeCode + ' flag'} className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
-            <span className="text-sm">{homeTeamName}</span>
-          </span>
-          <div className="flex items-center gap-1 shrink-0">
+        {/* Mobile */}
+        <div className="flex sm:hidden flex-col w-full gap-1">
+          <div className="flex items-center justify-between w-full">
+            <span className="flex items-center gap-1.5 font-medium">
+              {homeFlagUrl && <img src={homeFlagUrl} alt="" className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
+              <span>{homeTeamName}</span>
+            </span>
+            <span className="flex items-center gap-1.5 font-medium">
+              <span>{awayTeamName}</span>
+              {awayFlagUrl && <img src={awayFlagUrl} alt="" className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
+            </span>
+          </div>
+          <div className="flex items-center justify-center gap-2">
             {existingPrediction && <span className="rounded bg-field/10 px-2 py-0.5 text-xs font-semibold text-field">{existingPrediction.predicted_home_score_90}</span>}
             {centerElement}
             {existingPrediction && <span className="rounded bg-field/10 px-2 py-0.5 text-xs font-semibold text-field">{existingPrediction.predicted_away_score_90}</span>}
           </div>
-          <span className="flex items-center gap-1.5 font-medium min-w-0 justify-end">
-            <span className="text-sm">{awayTeamName}</span>
-            {awayFlagUrl && <img src={awayFlagUrl} alt={awayCode + ' flag'} className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
-          </span>
         </div>
-        {/* Desktop: inline layout */}
-        <span className="hidden sm:flex flex-1 text-right font-medium items-center gap-1 justify-end min-w-0">
-          {homeFlagUrl && <img src={homeFlagUrl} alt={homeCode + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />}
+        {/* Desktop */}
+        <span className="hidden sm:flex flex-1 text-right font-medium items-center gap-1 justify-end">
+          {homeFlagUrl && <img src={homeFlagUrl} alt="" className="w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />}
           {homeTeamName}
         </span>
         <div className="hidden sm:flex items-center gap-1">
-          {existingPrediction ? <span className="mx-1 rounded bg-field/10 px-2 py-0.5 text-xs font-semibold text-field shrink-0">{existingPrediction.predicted_home_score_90}</span> : <span className="w-5 shrink-0" />}
+          {existingPrediction ? <span className="mx-1 rounded bg-field/10 px-2 py-0.5 text-xs font-semibold text-field">{existingPrediction.predicted_home_score_90}</span> : <span className="w-5" />}
           {centerElement}
-          {existingPrediction ? <span className="mx-1 rounded bg-field/10 px-2 py-0.5 text-xs font-semibold text-field shrink-0">{existingPrediction.predicted_away_score_90}</span> : <span className="w-5 shrink-0" />}
+          {existingPrediction ? <span className="mx-1 rounded bg-field/10 px-2 py-0.5 text-xs font-semibold text-field">{existingPrediction.predicted_away_score_90}</span> : <span className="w-5" />}
         </div>
-        <span className="hidden sm:flex flex-1 font-medium items-center gap-1 min-w-0">
-          {awayFlagUrl && <img src={awayFlagUrl} alt={awayCode + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />}
+        <span className="hidden sm:flex flex-1 font-medium items-center gap-1">
+          {awayFlagUrl && <img src={awayFlagUrl} alt="" className="w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />}
           {awayTeamName}
         </span>
       </div>
@@ -151,38 +153,38 @@ export default function PredictionForm({
       onSubmit={handleSubmit}
       className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-center gap-1.5 sm:gap-2 text-sm min-w-0"
     >
-      {/* Mobile layout */}
-      <div className="flex sm:hidden items-center justify-between w-full gap-2">
-        <span className="flex items-center gap-1.5 font-medium">
-          {homeFlagUrl && <img src={homeFlagUrl} alt={homeCode + ' flag'} className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
-          <span>{homeTeamName}</span>
-        </span>
-        <div className="flex items-center gap-1 shrink-0">
-          <input type="number" min={0} max={99} value={homeScore} onChange={(e) => { setHomeScore(e.target.value); setSaved(false); }} placeholder="–" className="w-10 rounded border border-ink/20 px-1 py-0.5 text-center text-sm font-semibold focus:border-field focus:outline-none" aria-label={`${homeCode} score`} />
-          {centerElement}
-          <input type="number" min={0} max={99} value={awayScore} onChange={(e) => { setAwayScore(e.target.value); setSaved(false); }} placeholder="–" className="w-10 rounded border border-ink/20 px-1 py-0.5 text-center text-sm font-semibold focus:border-field focus:outline-none" aria-label={`${awayCode} score`} />
+      {/* Mobile layout — names on top row, inputs on bottom */}
+      <div className="flex sm:hidden flex-col w-full gap-1.5">
+        <div className="flex items-center justify-between w-full">
+          <span className="flex items-center gap-1.5 font-medium">
+            {homeFlagUrl && <img src={homeFlagUrl} alt="" className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
+            <span>{homeTeamName}</span>
+          </span>
+          <span className="flex items-center gap-1.5 font-medium">
+            <span>{awayTeamName}</span>
+            {awayFlagUrl && <img src={awayFlagUrl} alt="" className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
+          </span>
         </div>
-        <span className="flex items-center gap-1.5 font-medium justify-end">
-          <span>{awayTeamName}</span>
-          {awayFlagUrl && <img src={awayFlagUrl} alt={awayCode + ' flag'} className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
-        </span>
-      </div>
-      <div className="flex sm:hidden items-center justify-end gap-2">
-        <button type="submit" disabled={saving || saved} className={`rounded px-3 py-1 text-xs font-medium transition ${saved ? "bg-field/20 text-field" : "bg-field text-white hover:bg-field/90"} disabled:opacity-50`}>
-          {saving ? "…" : saved ? "✓ Saved" : "Save"}
-        </button>
-        {error && <span className="text-xs text-red-600">{error}</span>}
+        <div className="flex items-center justify-center gap-2">
+          <input type="number" min={0} max={99} value={homeScore} onChange={(e) => { setHomeScore(e.target.value); setSaved(false); }} placeholder="–" className="w-12 rounded border border-ink/20 px-1 py-1 text-center text-sm font-semibold focus:border-field focus:outline-none" aria-label={`${homeCode} score`} />
+          {centerElement}
+          <input type="number" min={0} max={99} value={awayScore} onChange={(e) => { setAwayScore(e.target.value); setSaved(false); }} placeholder="–" className="w-12 rounded border border-ink/20 px-1 py-1 text-center text-sm font-semibold focus:border-field focus:outline-none" aria-label={`${awayCode} score`} />
+          <button type="submit" disabled={saving || saved} className={`rounded px-3 py-1 text-xs font-medium transition ${saved ? "bg-field/20 text-field" : "bg-field text-white hover:bg-field/90"} disabled:opacity-50`}>
+            {saving ? "…" : saved ? "✓ Saved" : "Save"}
+          </button>
+        </div>
+        {error && <span className="text-xs text-red-600 text-center">{error}</span>}
       </div>
       {/* Desktop layout */}
       <span className="hidden sm:flex flex-1 text-right font-medium items-center gap-1 justify-end min-w-0">
-        {homeFlagUrl && <img src={homeFlagUrl} alt={homeCode + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />}
+        {homeFlagUrl && <img src={homeFlagUrl} alt="" className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />}
         {homeTeamName}
       </span>
       <input type="number" min={0} max={99} value={homeScore} onChange={(e) => { setHomeScore(e.target.value); setSaved(false); }} placeholder="–" className="hidden sm:block w-10 rounded border border-ink/20 px-1 py-0.5 text-center text-xs font-semibold focus:border-field focus:outline-none" aria-label={`${homeCode} score prediction`} />
-      {<span className="hidden sm:inline">{centerElement}</span>}
+      <span className="hidden sm:inline">{centerElement}</span>
       <input type="number" min={0} max={99} value={awayScore} onChange={(e) => { setAwayScore(e.target.value); setSaved(false); }} placeholder="–" className="hidden sm:block w-10 rounded border border-ink/20 px-1 py-0.5 text-center text-xs font-semibold focus:border-field focus:outline-none" aria-label={`${awayCode} score prediction`} />
       <span className="hidden sm:flex flex-1 font-medium items-center gap-1 min-w-0">
-        {awayFlagUrl && <img src={awayFlagUrl} alt={awayCode + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />}
+        {awayFlagUrl && <img src={awayFlagUrl} alt="" className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />}
         {awayTeamName}
       </span>
       <button type="submit" disabled={saving || saved} className={`hidden sm:block ml-2 rounded px-2 py-0.5 text-xs font-medium transition ${saved ? "bg-field/20 text-field" : "bg-field text-white hover:bg-field/90"} disabled:opacity-50`}>

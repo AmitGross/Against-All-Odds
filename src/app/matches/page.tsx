@@ -111,20 +111,24 @@ export default async function MatchesPage() {
                   ) : (
                     <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-center gap-1 sm:gap-2 text-sm min-w-0">
                       {/* Mobile */}
-                      <div className="flex sm:hidden items-center justify-between w-full gap-2">
-                        <span className="flex items-center gap-1.5 font-medium">
-                          {m.home_team.flag_url && <img src={m.home_team.flag_url} alt={m.home_team.code + ' flag'} className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
-                          <span>{m.home_team.name}</span>
-                        </span>
-                        {m.status === "finished" ? (
-                          <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-sand shrink-0">{m.home_score_90} – {m.away_score_90}</span>
-                        ) : (
-                          <span className="rounded bg-sand px-2 py-0.5 text-xs text-ink/60 shrink-0">{new Date(m.starts_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC", hour12: false })} UTC</span>
-                        )}
-                        <span className="flex items-center gap-1.5 font-medium justify-end">
-                          <span>{m.away_team.name}</span>
-                          {m.away_team.flag_url && <img src={m.away_team.flag_url} alt={m.away_team.code + ' flag'} className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
-                        </span>
+                      <div className="flex sm:hidden flex-col w-full gap-1">
+                        <div className="flex items-center justify-between w-full">
+                          <span className="flex items-center gap-1.5 font-medium">
+                            {m.home_team.flag_url && <img src={m.home_team.flag_url} alt={m.home_team.code + ' flag'} className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
+                            <span>{m.home_team.name}</span>
+                          </span>
+                          <span className="flex items-center gap-1.5 font-medium">
+                            <span>{m.away_team.name}</span>
+                            {m.away_team.flag_url && <img src={m.away_team.flag_url} alt={m.away_team.code + ' flag'} className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2">
+                          {m.status === "finished" ? (
+                            <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-sand">{m.home_score_90} – {m.away_score_90}</span>
+                          ) : (
+                            <span className="rounded bg-sand px-2 py-0.5 text-xs text-ink/60">{new Date(m.starts_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC", hour12: false })} UTC</span>
+                          )}
+                        </div>
                       </div>
                       {/* Desktop */}
                       <span className="hidden sm:flex flex-1 text-right font-medium items-center gap-1 justify-end min-w-0">
