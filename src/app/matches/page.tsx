@@ -109,37 +109,38 @@ export default async function MatchesPage() {
                       locked={isLocked}
                     />
                   ) : (
-                    <div className="flex flex-1 items-center justify-center gap-1 sm:gap-2 text-sm min-w-0">
-                      <span className="flex-1 text-right font-medium flex items-center gap-1 justify-end min-w-0 truncate">
-                        {m.home_team.flag_url && (
-                          <img src={m.home_team.flag_url} alt={m.home_team.code + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />
+                    <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-center gap-1 sm:gap-2 text-sm min-w-0">
+                      {/* Mobile */}
+                      <div className="flex sm:hidden items-center justify-between w-full gap-2">
+                        <span className="flex items-center gap-1.5 font-medium">
+                          {m.home_team.flag_url && <img src={m.home_team.flag_url} alt={m.home_team.code + ' flag'} className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
+                          <span>{m.home_team.name}</span>
+                        </span>
+                        {m.status === "finished" ? (
+                          <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-sand shrink-0">{m.home_score_90} – {m.away_score_90}</span>
+                        ) : (
+                          <span className="rounded bg-sand px-2 py-0.5 text-xs text-ink/60 shrink-0">{new Date(m.starts_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC", hour12: false })} UTC</span>
                         )}
-                        <span className="truncate text-xs sm:text-sm">{m.home_team.name}</span>
+                        <span className="flex items-center gap-1.5 font-medium justify-end">
+                          <span>{m.away_team.name}</span>
+                          {m.away_team.flag_url && <img src={m.away_team.flag_url} alt={m.away_team.code + ' flag'} className="w-6 h-4 rounded-sm border border-ink/10 shrink-0" />}
+                        </span>
+                      </div>
+                      {/* Desktop */}
+                      <span className="hidden sm:flex flex-1 text-right font-medium items-center gap-1 justify-end min-w-0">
+                        {m.home_team.flag_url && <img src={m.home_team.flag_url} alt={m.home_team.code + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />}
+                        {m.home_team.name}
                       </span>
-
                       {m.status === "finished" ? (
-                        <span className="mx-2 rounded bg-red-600 px-3 py-1 text-sm font-bold text-sand">
-                          {m.home_score_90} – {m.away_score_90}
-                        </span>
+                        <span className="hidden sm:inline mx-2 rounded bg-red-600 px-3 py-1 text-sm font-bold text-sand">{m.home_score_90} – {m.away_score_90}</span>
                       ) : (
-                        <span className="mx-2 rounded bg-sand px-3 py-1 text-xs text-ink/60">
-                          {new Date(m.starts_at).toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            timeZone: "UTC",
-                            hour12: false,
-                          })}{" "}
-                          UTC
-                        </span>
+                        <span className="hidden sm:inline mx-2 rounded bg-sand px-3 py-1 text-xs text-ink/60">{new Date(m.starts_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC", hour12: false })} UTC</span>
                       )}
-
-                      <span className="flex-1 font-medium flex items-center gap-1 min-w-0 truncate">
-                        {m.away_team.flag_url && (
-                          <img src={m.away_team.flag_url} alt={m.away_team.code + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />
-                        )}
-                        <span className="truncate text-xs sm:text-sm">{m.away_team.name}</span>
+                      <span className="hidden sm:flex flex-1 font-medium items-center gap-1 min-w-0">
+                        {m.away_team.flag_url && <img src={m.away_team.flag_url} alt={m.away_team.code + ' flag'} className="inline-block w-5 h-3.5 rounded-sm border border-ink/10 shrink-0" />}
+                        {m.away_team.name}
                       </span>
-                      <span className="ml-1 text-xs text-ink/30 shrink-0">Log in</span>
+                      <span className="hidden sm:inline ml-1 text-xs text-ink/30 shrink-0">Log in</span>
                     </div>
                   )}
                 </div>
