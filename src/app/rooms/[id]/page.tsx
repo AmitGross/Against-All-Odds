@@ -52,13 +52,17 @@ export default async function RoomDetailPage({
       username: m.profiles?.username ?? "Unknown",
     }));
 
-  // Fetch prediction scores for room members
+  // Fetch prediction scores with joined prediction + match data for stats
   const memberIds = (members ?? []).map((m: any) => m.user_id as string);
   const { data: scores } =
     memberIds.length > 0
       ? await supabase
           .from("prediction_scores")
-          .select("user_id, global_points")
+          .select(`
+            user_id, base_points,
+            predictions!inner(predicted_home_score_90, predicted_away_score_90),
+            matches!inner(home_score_90, away_score_90)
+          `)
           .in("user_id", memberIds)
       : { data: [] };
 
@@ -68,7 +72,7 @@ export default async function RoomDetailPage({
     .select("user_id, bonus_points")
     .eq("room_id", id);
 
-  // Fetch global prediction points for members
+  // Fetch global + knockout prediction points for members
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const adminClient = createAdminClient();
   const [{ data: globalPreds }, { data: knockoutPreds }] = memberIds.length > 0
@@ -78,26 +82,48 @@ export default async function RoomDetailPage({
       ])
     : [{ data: [] }, { data: [] }];
 
-  // Aggregate standings
-  const standings = new Map<string, { base: number; bonus: number; global: number }>();
+  // Aggregate standings with per-user stats
+  const standings = new Map<string, {
+    exact: number;
+    direction: number;
+    wrong: number;
+    pts: number;
+    roomBonus: number;
+    extraPts: number;
+  }>();
   for (const uid of memberIds) {
-    standings.set(uid, { base: 0, bonus: 0, global: 0 });
+    standings.set(uid, { exact: 0, direction: 0, wrong: 0, pts: 0, roomBonus: 0, extraPts: 0 });
   }
   for (const s of scores ?? []) {
     const entry = standings.get(s.user_id);
-    if (entry) entry.base += s.global_points;
+    if (!entry) continue;
+    const pred = s.predictions as { predicted_home_score_90: number; predicted_away_score_90: number };
+    const match = s.matches as { home_score_90: number | null; away_score_90: number | null };
+    if (match.home_score_90 !== null && match.away_score_90 !== null) {
+      const isExact =
+        pred.predicted_home_score_90 === match.home_score_90 &&
+        pred.predicted_away_score_90 === match.away_score_90;
+      if (isExact) {
+        entry.exact += 1;
+      } else if (s.base_points > 0) {
+        entry.direction += 1;
+      } else {
+        entry.wrong += 1;
+      }
+    }
+    entry.pts += s.base_points;
   }
   for (const b of bonuses ?? []) {
     const entry = standings.get(b.user_id);
-    if (entry) entry.bonus += b.bonus_points;
+    if (entry) entry.roomBonus += b.bonus_points;
   }
   for (const g of globalPreds ?? []) {
     const entry = standings.get(g.user_id);
-    if (entry) entry.global += g.points_awarded;
+    if (entry) entry.extraPts += g.points_awarded;
   }
   for (const k of knockoutPreds ?? []) {
     const entry = standings.get(k.user_id);
-    if (entry) entry.global += k.points_awarded;
+    if (entry) entry.extraPts += k.points_awarded;
   }
 
   const profileMap = new Map(
@@ -112,12 +138,15 @@ export default async function RoomDetailPage({
   );
 
   const sortedStandings = [...standings.entries()]
-    .map(([userId, pts]) => ({
+    .map(([userId, s]) => ({
       userId,
       ...profileMap.get(userId)!,
-      base: pts.base,
-      bonus: pts.bonus,
-      total: pts.base + pts.bonus + pts.global,
+      exact: s.exact,
+      direction: s.direction,
+      wrong: s.wrong,
+      pts: s.pts,
+      roomBonus: s.roomBonus,
+      total: s.pts + s.roomBonus + s.extraPts,
     }))
     .sort((a, b) => b.total - a.total);
 
@@ -154,15 +183,18 @@ export default async function RoomDetailPage({
       <div>
         <h3 className="mb-3 text-lg font-semibold">Standings</h3>
         {hasScores ? (
-          <div className="overflow-hidden rounded-lg border border-ink/10">
+          <div className="overflow-x-auto overflow-hidden rounded-lg border border-ink/10">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-ink/10 bg-ink/5 text-left">
-                  <th className="w-10 px-3 py-2">#</th>
+                <tr className="border-b border-ink/10 bg-ink/5 text-left text-xs text-ink/50 uppercase">
+                  <th className="w-8 px-3 py-2">#</th>
                   <th className="px-3 py-2">Player</th>
-                  <th className="px-3 py-2 text-right">Base</th>
-                  <th className="px-3 py-2 text-right">Bonus</th>
-                  <th className="px-3 py-2 text-right">Total</th>
+                  <th className="px-3 py-2 text-center" title="Exact score predictions">🎯</th>
+                  <th className="px-3 py-2 text-center" title="Correct direction">✓</th>
+                  <th className="px-3 py-2 text-center" title="Wrong direction">✗</th>
+                  <th className="px-3 py-2 text-right">Pts</th>
+                  <th className="px-3 py-2 text-right">+Bonus</th>
+                  <th className="px-3 py-2 text-right font-bold text-ink">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,9 +212,12 @@ export default async function RoomDetailPage({
                         <span className="ml-1 text-xs">👑</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right">{s.base}</td>
+                    <td className="px-3 py-2 text-center text-field font-medium">{s.exact}</td>
+                    <td className="px-3 py-2 text-center text-green-600">{s.direction}</td>
+                    <td className="px-3 py-2 text-center text-red-400">{s.wrong}</td>
+                    <td className="px-3 py-2 text-right">{s.pts}</td>
                     <td className="px-3 py-2 text-right text-clay">
-                      {s.bonus > 0 ? `+${s.bonus}` : "0"}
+                      {s.roomBonus > 0 ? `+${s.roomBonus}` : "—"}
                     </td>
                     <td className="px-3 py-2 text-right font-semibold">
                       {s.total}
