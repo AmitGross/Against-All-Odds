@@ -13,6 +13,15 @@ interface MatchRow {
   away_team: { code: string; name: string; flag_url: string | null };
 }
 
+interface MlPredictionRow {
+  match_id: string;
+  predicted_home_score: number;
+  predicted_away_score: number;
+  prob_home_win: number;
+  prob_draw: number;
+  prob_away_win: number;
+}
+
 interface PredictionRow {
   id: string;
   match_id: string;
@@ -57,6 +66,22 @@ export default async function MatchesPage() {
     }
   }
 
+  // Fetch ML predictions for all group-stage matches
+  const matchIds = (matches ?? []).map((m) => m.id);
+  let mlMap: Record<string, MlPredictionRow> = {};
+  if (matchIds.length > 0) {
+    const { data: mlPredictions } = await supabase
+      .from("ml_predictions")
+      .select("match_id, predicted_home_score, predicted_away_score, prob_home_win, prob_draw, prob_away_win")
+      .in("match_id", matchIds);
+
+    if (mlPredictions) {
+      for (const p of mlPredictions as MlPredictionRow[]) {
+        mlMap[p.match_id] = p;
+      }
+    }
+  }
+
   // Group matches by date
   const grouped: Record<string, MatchRow[]> = {};
   for (const m of (matches ?? []) as unknown as MatchRow[]) {
@@ -82,15 +107,17 @@ export default async function MatchesPage() {
             {dayMatches.map((m) => {
               const prediction = predictionsMap[m.id] ?? null;
               const isLocked = m.is_locked || m.status === "finished" || m.status === "live";
+              const ml = mlMap[m.id] ?? null;
 
               return (
                 <div
                   key={m.id}
-                  className="flex items-center gap-3 rounded-lg border border-ink/10 bg-white px-4 py-3"
+                  className="rounded-lg border border-ink/10 bg-white overflow-hidden"
                 >
-                  <span className="w-8 shrink-0 text-xs font-medium text-ink/40">
-                    {m.group_name}
-                  </span>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <span className="w-8 shrink-0 text-xs font-medium text-ink/40">
+                      {m.group_name}
+                    </span>
 
                   {user ? (
                     <PredictionForm
@@ -145,6 +172,27 @@ export default async function MatchesPage() {
                         {m.away_team.name}
                       </span>
                       <span className="hidden sm:inline ml-1 text-xs text-ink/30 shrink-0">Log in</span>
+                    </div>
+                  )}
+                  </div>
+
+                  {ml && (
+                    <div className="flex items-center gap-2 border-t border-ink/5 px-4 py-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-ink/30">AI</span>
+                      <span className="text-xs font-semibold text-ink/60">
+                        {ml.predicted_home_score} – {ml.predicted_away_score}
+                      </span>
+                      <div className="flex items-center gap-1 ml-1">
+                        <span className="rounded bg-field/10 px-1.5 py-0.5 text-[10px] font-medium text-field">
+                          H {Math.round(ml.prob_home_win * 100)}%
+                        </span>
+                        <span className="rounded bg-ink/5 px-1.5 py-0.5 text-[10px] font-medium text-ink/50">
+                          D {Math.round(ml.prob_draw * 100)}%
+                        </span>
+                        <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-400">
+                          A {Math.round(ml.prob_away_win * 100)}%
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
