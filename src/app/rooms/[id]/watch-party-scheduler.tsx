@@ -121,7 +121,7 @@ export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlo
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-ink/10">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[560px] text-sm">
           <thead>
             <tr className="border-b border-ink/10 bg-ink/5 text-left text-xs text-ink/50 uppercase">
               <th className="w-6 px-3 py-2">#</th>
