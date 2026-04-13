@@ -390,8 +390,8 @@ export default async function RoomDetailPage({
     matchId: r.match_id as string | null,
     knockoutSlotId: r.knockout_slot_id as string | null,
     place: r.place as string,
+    isLocked: r.is_locked as boolean,
   }));
-  const watchPartyLocked = (watchPartyRows ?? []).some((r: any) => r.is_locked);
 
   return (
     <div className="space-y-6">
@@ -494,7 +494,6 @@ export default async function RoomDetailPage({
             isOwner={isOwner}
             matches={allPickerItems}
             savedSlots={savedSlots}
-            isLocked={watchPartyLocked}
           />
         </div>
 

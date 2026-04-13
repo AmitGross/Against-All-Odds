@@ -162,23 +162,28 @@ export async function saveWatchPartySlots(
     .single();
   if (!membership) return { error: "Not a member of this room." };
 
-  // Check if any slot is locked
-  const { data: existing } = await supabase
+  // Fetch currently locked slot numbers so we don't overwrite them
+  const { data: lockedRows } = await supabase
     .from("room_watch_parties")
-    .select("is_locked")
-    .eq("room_id", roomId)
-    .limit(1)
-    .single();
-  if (existing?.is_locked) return { error: "Watch party is locked by the owner." };
+    .select("slot, is_locked")
+    .eq("room_id", roomId);
+  const lockedSlots = new Set(
+    (lockedRows ?? []).filter((r: any) => r.is_locked).map((r: any) => r.slot as number)
+  );
 
-  const rows = slots.map((s) => ({
-    room_id: roomId,
-    slot: s.slot,
-    match_id: s.matchId || null,
-    knockout_slot_id: s.knockoutSlotId || null,
-    place: s.place.trim().slice(0, 30),
-    updated_at: new Date().toISOString(),
-  }));
+  // Only upsert non-locked slots
+  const rows = slots
+    .filter((s) => !lockedSlots.has(s.slot))
+    .map((s) => ({
+      room_id: roomId,
+      slot: s.slot,
+      match_id: s.matchId || null,
+      knockout_slot_id: s.knockoutSlotId || null,
+      place: s.place.trim().slice(0, 30),
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (rows.length === 0) return { error: "All slots are locked." };
 
   const { error } = await supabase
     .from("room_watch_parties")
@@ -189,7 +194,7 @@ export async function saveWatchPartySlots(
   return { success: true };
 }
 
-export async function toggleWatchPartyLock(roomId: string) {
+export async function toggleSlotLock(roomId: string, slot: number) {
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
@@ -205,17 +210,26 @@ export async function toggleWatchPartyLock(roomId: string) {
     .from("room_watch_parties")
     .select("is_locked")
     .eq("room_id", roomId)
-    .limit(1)
+    .eq("slot", slot)
     .single();
 
   const newLocked = existing ? !existing.is_locked : true;
 
-  const { error } = await supabase
-    .from("room_watch_parties")
-    .update({ is_locked: newLocked })
-    .eq("room_id", roomId);
-  if (error) return { error: error.message };
+  if (existing) {
+    const { error } = await supabase
+      .from("room_watch_parties")
+      .update({ is_locked: newLocked })
+      .eq("room_id", roomId)
+      .eq("slot", slot);
+    if (error) return { error: error.message };
+  } else {
+    // Row doesn't exist yet — create it locked
+    const { error } = await supabase
+      .from("room_watch_parties")
+      .insert({ room_id: roomId, slot, is_locked: true, place: "" });
+    if (error) return { error: error.message };
+  }
 
   revalidatePath(`/rooms/${roomId}`);
-  return { success: true };
+  return { success: true, locked: newLocked };
 }

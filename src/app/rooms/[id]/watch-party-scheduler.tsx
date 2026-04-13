@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { saveWatchPartySlots, toggleWatchPartyLock } from "./actions";
+import { saveWatchPartySlots, toggleSlotLock } from "./actions";
 
 const MAX_SLOTS = 8;
 
@@ -19,6 +19,7 @@ interface WatchSlot {
   matchId: string | null;
   knockoutSlotId: string | null;
   place: string;
+  isLocked: boolean;
 }
 
 interface Props {
@@ -26,7 +27,6 @@ interface Props {
   isOwner: boolean;
   matches: UpcomingMatch[];
   savedSlots: WatchSlot[];
-  isLocked: boolean;
 }
 
 function formatDateTime(iso: string) {
@@ -37,18 +37,16 @@ function formatDateTime(iso: string) {
   };
 }
 
-export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlots, isLocked }: Props) {
+export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlots }: Props) {
   const [slots, setSlots] = useState<WatchSlot[]>(() =>
     Array.from({ length: MAX_SLOTS }, (_, i) => {
       const saved = savedSlots.find((s) => s.slot === i + 1);
-      return saved ?? { slot: i + 1, matchId: null, knockoutSlotId: null, place: "" };
+      return saved ?? { slot: i + 1, matchId: null, knockoutSlotId: null, place: "", isLocked: false };
     })
   );
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
-
-  const disabled = isLocked && !isOwner;
 
   // Encode picker value as "match:id" or "knockout:id"
   function encodeValue(m: UpcomingMatch) { return `${m.type}:${m.id}`; }
@@ -91,10 +89,13 @@ export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlo
     });
   }
 
-  function handleLockToggle() {
+  function handleSlotLockToggle(slotNum: number) {
     startTransition(async () => {
-      const result = await toggleWatchPartyLock(roomId);
-      if (result?.error) setError(result.error);
+      const result = await toggleSlotLock(roomId, slotNum);
+      if (result?.error) { setError(result.error); return; }
+      setSlots((prev) =>
+        prev.map((s) => s.slot === slotNum ? { ...s, isLocked: !s.isLocked } : s)
+      );
     });
   }
 
@@ -102,26 +103,10 @@ export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlo
     <div className="rounded-lg border border-ink/10 bg-white p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Watch Party Schedule</h3>
-        <div className="flex items-center gap-3">
-          {isLocked && (
-            <span className="text-xs font-medium text-clay bg-clay/10 px-2 py-0.5 rounded">
-              🔒 Locked
-            </span>
-          )}
-          {isOwner && (
-            <button
-              onClick={handleLockToggle}
-              disabled={isPending}
-              className="text-xs text-ink/50 hover:text-ink underline disabled:opacity-50"
-            >
-              {isLocked ? "Unlock" : "Lock"}
-            </button>
-          )}
-        </div>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-ink/10">
-        <table className="w-full min-w-[560px] text-sm">
+        <table className="w-full min-w-[600px] text-sm">
           <thead>
             <tr className="border-b border-ink/10 bg-ink/5 text-left text-xs text-ink/50 uppercase">
               <th className="w-6 px-3 py-2">#</th>
@@ -129,20 +114,29 @@ export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlo
               <th className="px-3 py-2 w-24">Date</th>
               <th className="px-3 py-2 w-20">Time</th>
               <th className="px-3 py-2">Where to watch</th>
+              {isOwner && <th className="px-3 py-2 w-16 text-center">Lock</th>}
             </tr>
           </thead>
           <tbody>
             {slots.map((slot, i) => {
-              const match = matches.find((m) => m.id === slot.matchId);
-              const { date, time } = match ? formatDateTime(match.startsAt) : { date: "—", time: "—" };
+              const picked = matches.find((m) =>
+                slot.matchId ? m.type === "match" && m.id === slot.matchId
+                : slot.knockoutSlotId ? m.type === "knockout" && m.id === slot.knockoutSlotId
+                : false
+              );
+              const { date, time } = picked ? formatDateTime(picked.startsAt) : { date: "—", time: "—" };
+              const rowLocked = slot.isLocked;
+              const rowDisabled = rowLocked && !isOwner;
               return (
-                <tr key={slot.slot} className="border-b border-ink/5 last:border-0">
-                  <td className="px-3 py-1.5 text-ink/40 text-xs">{slot.slot}</td>
+                <tr key={slot.slot} className={`border-b border-ink/5 last:border-0 ${rowLocked ? "bg-ink/3" : ""}`}>
+                  <td className="px-3 py-1.5 text-ink/40 text-xs">
+                    {rowLocked ? "🔒" : slot.slot}
+                  </td>
                   <td className="px-3 py-1.5">
                     <select
                       value={getSlotValue(slot)}
                       onChange={(e) => updateSlot(i, "selection", e.target.value)}
-                      disabled={disabled || isPending}
+                      disabled={rowDisabled || isPending}
                       className="w-full rounded border border-ink/20 px-2 py-1 text-xs focus:border-field focus:outline-none disabled:opacity-50 bg-white"
                     >
                       <option value="">— Select —</option>
@@ -160,12 +154,24 @@ export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlo
                       type="text"
                       value={slot.place}
                       onChange={(e) => updateSlot(i, "place", e.target.value)}
-                      disabled={disabled || isPending}
+                      disabled={rowDisabled || isPending}
                       placeholder="e.g. John's place"
                       maxLength={30}
                       className="w-full rounded border border-ink/20 px-2 py-1 text-xs focus:border-field focus:outline-none disabled:opacity-50"
                     />
                   </td>
+                  {isOwner && (
+                    <td className="px-3 py-1.5 text-center">
+                      <button
+                        onClick={() => handleSlotLockToggle(slot.slot)}
+                        disabled={isPending}
+                        title={rowLocked ? "Unlock this slot" : "Lock this slot"}
+                        className="text-xs text-ink/40 hover:text-ink disabled:opacity-30"
+                      >
+                        {rowLocked ? "🔓" : "🔒"}
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -174,15 +180,13 @@ export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlo
       </div>
 
       <div className="flex items-center gap-3">
-        {!disabled && (
-          <button
-            onClick={handleSave}
-            disabled={isPending}
-            className="rounded bg-field px-4 py-1.5 text-sm font-medium text-white hover:bg-field/90 disabled:opacity-50"
-          >
-            {isPending ? "Saving..." : "Save"}
-          </button>
-        )}
+        <button
+          onClick={handleSave}
+          disabled={isPending}
+          className="rounded bg-field px-4 py-1.5 text-sm font-medium text-white hover:bg-field/90 disabled:opacity-50"
+        >
+          {isPending ? "Saving..." : "Save"}
+        </button>
         {error && <p className="text-xs text-red-500">{error}</p>}
         {saved && <p className="text-xs text-green-600">Saved!</p>}
       </div>
