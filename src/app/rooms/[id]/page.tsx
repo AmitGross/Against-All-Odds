@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import CopyInviteButton from "./copy-invite-button";
 import LeaveRoomButton from "./leave-room-button";
 import RenameRoomForm from "./rename-room-form";
@@ -182,8 +181,7 @@ export default async function RoomDetailPage({
 
   const lockedMatchIds = lockedMatchRows?.map((m) => m.id) ?? [];
 
-  // Fetch member predictions for those matches — use admin client to bypass RLS (own-row-only)
-  const adminClient = createAdminClient();
+  // Fetch member predictions for those matches — reuse adminClient (bypasses RLS)
   const { data: telepathyPreds } = memberIds.length > 0 && lockedMatchIds.length > 0
     ? await adminClient
         .from("predictions")
