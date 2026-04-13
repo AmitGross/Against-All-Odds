@@ -148,7 +148,7 @@ export async function renameRoom(roomId: string, newName: string) {
 
 export async function saveWatchPartySlots(
   roomId: string,
-  slots: { slot: number; matchId: string | null; place: string }[]
+  slots: { slot: number; matchId: string | null; knockoutSlotId: string | null; place: string }[]
 ) {
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -175,6 +175,7 @@ export async function saveWatchPartySlots(
     room_id: roomId,
     slot: s.slot,
     match_id: s.matchId || null,
+    knockout_slot_id: s.knockoutSlotId || null,
     place: s.place.trim().slice(0, 30),
     updated_at: new Date().toISOString(),
   }));

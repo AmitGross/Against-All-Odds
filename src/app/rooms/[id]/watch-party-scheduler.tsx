@@ -7,6 +7,7 @@ const MAX_SLOTS = 8;
 
 interface UpcomingMatch {
   id: string;
+  type: "match" | "knockout";
   homeTeam: string;
   awayTeam: string;
   startsAt: string;
@@ -16,6 +17,7 @@ interface UpcomingMatch {
 interface WatchSlot {
   slot: number;
   matchId: string | null;
+  knockoutSlotId: string | null;
   place: string;
 }
 
@@ -39,7 +41,7 @@ export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlo
   const [slots, setSlots] = useState<WatchSlot[]>(() =>
     Array.from({ length: MAX_SLOTS }, (_, i) => {
       const saved = savedSlots.find((s) => s.slot === i + 1);
-      return saved ?? { slot: i + 1, matchId: null, place: "" };
+      return saved ?? { slot: i + 1, matchId: null, knockoutSlotId: null, place: "" };
     })
   );
   const [error, setError] = useState("");
@@ -48,12 +50,29 @@ export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlo
 
   const disabled = isLocked && !isOwner;
 
-  function updateSlot(index: number, field: "matchId" | "place", value: string) {
+  // Encode picker value as "match:id" or "knockout:id"
+  function encodeValue(m: UpcomingMatch) { return `${m.type}:${m.id}`; }
+  function getSlotValue(slot: WatchSlot) {
+    if (slot.matchId) return `match:${slot.matchId}`;
+    if (slot.knockoutSlotId) return `knockout:${slot.knockoutSlotId}`;
+    return "";
+  }
+
+  function updateSlot(index: number, field: "selection" | "place", value: string) {
     setSaved(false);
     setSlots((prev) =>
-      prev.map((s, i) =>
-        i === index ? { ...s, [field]: field === "matchId" ? value || null : value.slice(0, 30) } : s
-      )
+      prev.map((s, i) => {
+        if (i !== index) return s;
+        if (field === "place") return { ...s, place: value.slice(0, 30) };
+        // parse selection
+        if (!value) return { ...s, matchId: null, knockoutSlotId: null };
+        const [type, id] = value.split(":");
+        return {
+          ...s,
+          matchId: type === "match" ? id : null,
+          knockoutSlotId: type === "knockout" ? id : null,
+        };
+      })
     );
   }
 
@@ -61,7 +80,12 @@ export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlo
     setError("");
     setSaved(false);
     startTransition(async () => {
-      const result = await saveWatchPartySlots(roomId, slots);
+      const result = await saveWatchPartySlots(roomId, slots.map((s) => ({
+        slot: s.slot,
+        matchId: s.matchId,
+        knockoutSlotId: s.knockoutSlotId,
+        place: s.place,
+      })));
       if (result?.error) setError(result.error);
       else setSaved(true);
     });
@@ -116,14 +140,14 @@ export default function WatchPartyScheduler({ roomId, isOwner, matches, savedSlo
                   <td className="px-3 py-1.5 text-ink/40 text-xs">{slot.slot}</td>
                   <td className="px-3 py-1.5">
                     <select
-                      value={slot.matchId ?? ""}
-                      onChange={(e) => updateSlot(i, "matchId", e.target.value)}
+                      value={getSlotValue(slot)}
+                      onChange={(e) => updateSlot(i, "selection", e.target.value)}
                       disabled={disabled || isPending}
                       className="w-full rounded border border-ink/20 px-2 py-1 text-xs focus:border-field focus:outline-none disabled:opacity-50 bg-white"
                     >
                       <option value="">— Select —</option>
                       {matches.map((m) => (
-                        <option key={m.id} value={m.id}>
+                        <option key={m.id} value={encodeValue(m)}>
                           {m.label}
                         </option>
                       ))}

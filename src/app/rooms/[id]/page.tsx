@@ -210,13 +210,14 @@ export default async function RoomDetailPage({
   // Fetch existing watch party slots for this room
   const { data: watchPartyRows } = await supabase
     .from("room_watch_parties")
-    .select("slot, match_id, place, is_locked")
+    .select("slot, match_id, knockout_slot_id, place, is_locked")
     .eq("room_id", id)
     .order("slot", { ascending: true });
 
   const savedSlots = (watchPartyRows ?? []).map((r: any) => ({
     slot: r.slot as number,
     matchId: r.match_id as string | null,
+    knockoutSlotId: r.knockout_slot_id as string | null,
     place: r.place as string,
   }));
   const watchPartyLocked = (watchPartyRows ?? []).some((r: any) => r.is_locked);
@@ -316,7 +317,7 @@ export default async function RoomDetailPage({
       <WatchPartyScheduler
         roomId={id}
         isOwner={isOwner}
-        matches={matchesForPicker}
+        matches={allPickerItems}
         savedSlots={savedSlots}
         isLocked={watchPartyLocked}
       />
