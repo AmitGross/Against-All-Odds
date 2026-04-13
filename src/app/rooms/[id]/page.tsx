@@ -411,7 +411,7 @@ export default async function RoomDetailPage({
         type: "knockout" as const,
         homeTeam: p.teamAName ?? "TBD",
         awayTeam: p.teamBName ?? "TBD",
-        startsAt: p.matchDate,
+        startsAt: p.matchDate ?? "",
         label: `${rl} · ${teamLabel}`,
       };
     });
