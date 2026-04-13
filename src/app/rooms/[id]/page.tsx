@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import CopyInviteButton from "./copy-invite-button";
 import LeaveRoomButton from "./leave-room-button";
 import RenameRoomForm from "./rename-room-form";
+import WatchPartyScheduler from "./watch-party-scheduler";
 
 export default async function RoomDetailPage({
   params,
@@ -171,6 +172,35 @@ export default async function RoomDetailPage({
     }))
     .sort((a, b) => b.total - a.total);
 
+  // Fetch upcoming (non-finished) matches for watch party selector
+  const { data: upcomingMatches } = await supabase
+    .from("matches")
+    .select(`
+      id, starts_at,
+      home_team:teams!matches_home_team_id_fkey(name),
+      away_team:teams!matches_away_team_id_fkey(name)
+    `)
+    .neq("status", "finished")
+    .order("starts_at", { ascending: true });
+
+  const matchesForPicker = (upcomingMatches ?? []).map((m: any) => ({
+    id: m.id as string,
+    homeTeam: m.home_team?.name ?? "TBD",
+    awayTeam: m.away_team?.name ?? "TBD",
+    startsAt: m.starts_at as string,
+  }));
+
+  // Fetch existing watch party for this room
+  const { data: watchPartyRow } = await supabase
+    .from("room_watch_parties")
+    .select("match_id, place, is_locked")
+    .eq("room_id", id)
+    .single();
+
+  const watchParty = watchPartyRow
+    ? { matchId: watchPartyRow.match_id, place: watchPartyRow.place, isLocked: watchPartyRow.is_locked }
+    : null;
+
   return (
     <div className="space-y-6">
       {/* Section A — full-width header */}
@@ -261,6 +291,14 @@ export default async function RoomDetailPage({
         <div className="rounded-lg border border-ink/10 bg-white p-4" />
 
       </div>
+
+      {/* Section D — Watch Party Scheduler */}
+      <WatchPartyScheduler
+        roomId={id}
+        isOwner={isOwner}
+        matches={matchesForPicker}
+        watchParty={watchParty}
+      />
     </div>
   );
 }

@@ -145,3 +145,64 @@ export async function renameRoom(roomId: string, newName: string) {
   revalidatePath(`/rooms/${roomId}`);
   return { success: true };
 }
+
+export async function saveWatchParty(roomId: string, matchId: string, place: string) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: membership } = await supabase
+    .from("room_memberships")
+    .select("role")
+    .eq("room_id", roomId)
+    .eq("user_id", user.id)
+    .single();
+  if (!membership) return { error: "Not a member of this room." };
+
+  const { data: existing } = await supabase
+    .from("room_watch_parties")
+    .select("is_locked")
+    .eq("room_id", roomId)
+    .single();
+  if (existing?.is_locked) return { error: "Watch party is locked by the owner." };
+
+  const { error } = await supabase
+    .from("room_watch_parties")
+    .upsert(
+      { room_id: roomId, match_id: matchId, place: place.trim().slice(0, 30), updated_at: new Date().toISOString() },
+      { onConflict: "room_id" }
+    );
+  if (error) return { error: error.message };
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { success: true };
+}
+
+export async function toggleWatchPartyLock(roomId: string) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: room } = await supabase
+    .from("rooms")
+    .select("created_by")
+    .eq("id", roomId)
+    .single();
+  if (!room || room.created_by !== user.id) return { error: "Only the owner can lock/unlock." };
+
+  const { data: existing } = await supabase
+    .from("room_watch_parties")
+    .select("is_locked")
+    .eq("room_id", roomId)
+    .single();
+  if (!existing) return { error: "No watch party to lock." };
+
+  const { error } = await supabase
+    .from("room_watch_parties")
+    .update({ is_locked: !existing.is_locked })
+    .eq("room_id", roomId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { success: true };
+}
