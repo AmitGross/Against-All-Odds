@@ -183,6 +183,12 @@ export default async function RoomDetailPage({
     .neq("status", "finished")
     .order("starts_at", { ascending: true });
 
+  // Fetch knockout slots (includes undecided future rounds)
+  const { data: knockoutSlots } = await supabase
+    .from("knockout_slots")
+    .select("id, round, slot_label, match_date, home_score, away_score, home_team:teams!knockout_slots_home_team_id_fkey(name), away_team:teams!knockout_slots_away_team_id_fkey(name)")
+    .order("match_date", { ascending: true });
+
   const stageLabel: Record<string, string> = {
     group: "Group",
     round_of_16: "Round of 16",
@@ -190,6 +196,11 @@ export default async function RoomDetailPage({
     semi_final: "Semi-Final",
     third_place: "3rd Place",
     final: "Final",
+    r32: "Round of 32",
+    r16: "Round of 16",
+    qf: "Quarter-Final",
+    sf: "Semi-Final",
+    bronze: "3rd Place",
   };
 
   const matchesForPicker = (upcomingMatches ?? []).map((m: any) => {
@@ -200,12 +211,33 @@ export default async function RoomDetailPage({
     const label = home && away ? `${home} vs ${away} · ${prefix}` : `${prefix} · TBD vs TBD`;
     return {
       id: m.id as string,
+      type: "match" as const,
       homeTeam: home ?? "TBD",
       awayTeam: away ?? "TBD",
       startsAt: m.starts_at as string,
       label,
     };
   });
+
+  const knockoutPickerItems = (knockoutSlots ?? [])
+    .filter((k: any) => k.home_score === null)
+    .map((k: any) => {
+      const home = k.home_team?.name ?? null;
+      const away = k.away_team?.name ?? null;
+      const roundLabel = stageLabel[k.round] ?? k.round;
+      const teamsLabel = home && away ? `${home} vs ${away}` : (k.slot_label ? `(${k.slot_label})` : "TBD vs TBD");
+      return {
+        id: k.id as string,
+        type: "knockout" as const,
+        homeTeam: home ?? "TBD",
+        awayTeam: away ?? "TBD",
+        startsAt: k.match_date as string,
+        label: `${roundLabel} · ${teamsLabel}`,
+      };
+    });
+
+  const allPickerItems = [...matchesForPicker, ...knockoutPickerItems]
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 
   // Fetch existing watch party slots for this room
   const { data: watchPartyRows } = await supabase
