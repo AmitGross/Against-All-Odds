@@ -1,12 +1,13 @@
--- Room Watch Party: one scheduled watch location per room
+-- Room Watch Party: up to 8 scheduled watch slots per room
 CREATE TABLE IF NOT EXISTS room_watch_parties (
   id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id    uuid        NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-  match_id   uuid        NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+  slot       smallint    NOT NULL CHECK (slot BETWEEN 1 AND 8),
+  match_id   uuid        REFERENCES matches(id) ON DELETE SET NULL,
   place      text        NOT NULL DEFAULT '',
   is_locked  boolean     NOT NULL DEFAULT false,
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(room_id)
+  UNIQUE(room_id, slot)
 );
 
 ALTER TABLE room_watch_parties ENABLE ROW LEVEL SECURITY;

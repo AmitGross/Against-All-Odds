@@ -146,7 +146,10 @@ export async function renameRoom(roomId: string, newName: string) {
   return { success: true };
 }
 
-export async function saveWatchParty(roomId: string, matchId: string, place: string) {
+export async function saveWatchPartySlots(
+  roomId: string,
+  slots: { slot: number; matchId: string | null; place: string }[]
+) {
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
@@ -159,19 +162,26 @@ export async function saveWatchParty(roomId: string, matchId: string, place: str
     .single();
   if (!membership) return { error: "Not a member of this room." };
 
+  // Check if any slot is locked
   const { data: existing } = await supabase
     .from("room_watch_parties")
     .select("is_locked")
     .eq("room_id", roomId)
+    .limit(1)
     .single();
   if (existing?.is_locked) return { error: "Watch party is locked by the owner." };
 
+  const rows = slots.map((s) => ({
+    room_id: roomId,
+    slot: s.slot,
+    match_id: s.matchId || null,
+    place: s.place.trim().slice(0, 30),
+    updated_at: new Date().toISOString(),
+  }));
+
   const { error } = await supabase
     .from("room_watch_parties")
-    .upsert(
-      { room_id: roomId, match_id: matchId, place: place.trim().slice(0, 30), updated_at: new Date().toISOString() },
-      { onConflict: "room_id" }
-    );
+    .upsert(rows, { onConflict: "room_id,slot" });
   if (error) return { error: error.message };
 
   revalidatePath(`/rooms/${roomId}`);
@@ -194,12 +204,14 @@ export async function toggleWatchPartyLock(roomId: string) {
     .from("room_watch_parties")
     .select("is_locked")
     .eq("room_id", roomId)
+    .limit(1)
     .single();
-  if (!existing) return { error: "No watch party to lock." };
+
+  const newLocked = existing ? !existing.is_locked : true;
 
   const { error } = await supabase
     .from("room_watch_parties")
-    .update({ is_locked: !existing.is_locked })
+    .update({ is_locked: newLocked })
     .eq("room_id", roomId);
   if (error) return { error: error.message };
 

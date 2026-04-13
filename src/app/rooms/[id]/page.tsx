@@ -176,30 +176,50 @@ export default async function RoomDetailPage({
   const { data: upcomingMatches } = await supabase
     .from("matches")
     .select(`
-      id, starts_at,
+      id, starts_at, stage, group_name,
       home_team:teams!matches_home_team_id_fkey(name),
       away_team:teams!matches_away_team_id_fkey(name)
     `)
     .neq("status", "finished")
     .order("starts_at", { ascending: true });
 
-  const matchesForPicker = (upcomingMatches ?? []).map((m: any) => ({
-    id: m.id as string,
-    homeTeam: m.home_team?.name ?? "TBD",
-    awayTeam: m.away_team?.name ?? "TBD",
-    startsAt: m.starts_at as string,
-  }));
+  const stageLabel: Record<string, string> = {
+    group: "Group",
+    round_of_16: "Round of 16",
+    quarter_final: "Quarter-Final",
+    semi_final: "Semi-Final",
+    third_place: "3rd Place",
+    final: "Final",
+  };
 
-  // Fetch existing watch party for this room
-  const { data: watchPartyRow } = await supabase
+  const matchesForPicker = (upcomingMatches ?? []).map((m: any) => {
+    const home = m.home_team?.name ?? null;
+    const away = m.away_team?.name ?? null;
+    const stage = stageLabel[m.stage] ?? m.stage;
+    const prefix = m.group_name ? `Group ${m.group_name}` : stage;
+    const label = home && away ? `${home} vs ${away} · ${prefix}` : `${prefix} · TBD vs TBD`;
+    return {
+      id: m.id as string,
+      homeTeam: home ?? "TBD",
+      awayTeam: away ?? "TBD",
+      startsAt: m.starts_at as string,
+      label,
+    };
+  });
+
+  // Fetch existing watch party slots for this room
+  const { data: watchPartyRows } = await supabase
     .from("room_watch_parties")
-    .select("match_id, place, is_locked")
+    .select("slot, match_id, place, is_locked")
     .eq("room_id", id)
-    .single();
+    .order("slot", { ascending: true });
 
-  const watchParty = watchPartyRow
-    ? { matchId: watchPartyRow.match_id, place: watchPartyRow.place, isLocked: watchPartyRow.is_locked }
-    : null;
+  const savedSlots = (watchPartyRows ?? []).map((r: any) => ({
+    slot: r.slot as number,
+    matchId: r.match_id as string | null,
+    place: r.place as string,
+  }));
+  const watchPartyLocked = (watchPartyRows ?? []).some((r: any) => r.is_locked);
 
   return (
     <div className="space-y-6">
@@ -297,7 +317,8 @@ export default async function RoomDetailPage({
         roomId={id}
         isOwner={isOwner}
         matches={matchesForPicker}
-        watchParty={watchParty}
+        savedSlots={savedSlots}
+        isLocked={watchPartyLocked}
       />
     </div>
   );
