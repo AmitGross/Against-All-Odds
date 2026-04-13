@@ -175,29 +175,32 @@ export default async function RoomDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">{room.name}</h2>
-          <p className="text-sm text-ink/40">
-            {(members ?? []).length} member{(members ?? []).length !== 1 ? "s" : ""}
-          </p>
-          {isOwner && <RenameRoomForm roomId={room.id} currentName={room.name} />}
+      {/* Section A — full-width header */}
+      <div className="rounded-lg border border-ink/10 bg-white p-5 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold">{room.name}</h2>
+            <p className="text-sm text-ink/40">
+              {(members ?? []).length} member{(members ?? []).length !== 1 ? "s" : ""}
+            </p>
+            {isOwner && <RenameRoomForm roomId={room.id} currentName={room.name} />}
+          </div>
+          <LeaveRoomButton roomId={room.id} isOwner={isOwner} otherMembers={otherMembers} />
         </div>
-        <LeaveRoomButton roomId={room.id} isOwner={isOwner} otherMembers={otherMembers} />
-      </div>
 
-      {/* Invite Code */}
-      <div className="rounded-lg border border-ink/10 bg-white p-4">
-        <p className="mb-1 text-xs font-medium text-ink/50">Invite Code</p>
-        <div className="flex items-center gap-2">
-          <code className="rounded bg-sand px-3 py-1 text-sm font-mono">
-            {room.invite_code}
-          </code>
-          <CopyInviteButton code={room.invite_code} />
+        {/* Invite Code */}
+        <div className="rounded-lg border border-ink/10 bg-ink/5 p-4">
+          <p className="mb-1 text-xs font-medium text-ink/50">Invite Code</p>
+          <div className="flex items-center gap-2">
+            <code className="rounded bg-sand px-3 py-1 text-sm font-mono">
+              {room.invite_code}
+            </code>
+            <CopyInviteButton code={room.invite_code} />
+          </div>
+          <p className="mt-2 text-xs text-ink/40">
+            Share this code so friends can join your room.
+          </p>
         </div>
-        <p className="mt-2 text-xs text-ink/40">
-          Share this code so friends can join your room.
-        </p>
       </div>
 
       {/* Standings */}
