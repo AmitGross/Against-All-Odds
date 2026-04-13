@@ -398,9 +398,8 @@ export default async function RoomDetailPage({
     };
   });
 
-  // Build knockout picker items from pairs — show all matches with both teams known
+  // Build knockout picker items from all pairs
   const knockoutPickerItems = knockoutMatchPairs
-    .filter(p => p.teamAName && p.teamBName)
     .map(p => {
       const rl = roundLabel[p.round] ?? p.round;
       const teamLabel = p.teamAName && p.teamBName
