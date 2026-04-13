@@ -231,49 +231,108 @@ export default async function RoomDetailPage({
     });
   }
 
-  // Also fetch knockout slot predictions (locked = teams assigned, finished = winner set)
-  const { data: lockedKnockoutSlots } = await supabase
+  // Fetch ALL knockout slots to build match pairs (each slot = one team position; pairs of adjacent positions = one match)
+  const { data: allKnockoutSlotsRaw } = await supabase
     .from("knockout_slots")
-    .select("id, round, slot_label, match_date, home_score, away_score, winner_team_id, home_team:teams!knockout_slots_home_team_id_fkey(name), away_team:teams!knockout_slots_away_team_id_fkey(name)")
-    .not("home_team_id", "is", null);
+    .select("id, round, side, position, slot_label, match_date, home_score, away_score, winner_team_id, home_team_id, home_team:teams!knockout_slots_home_team_id_fkey(name), away_team:teams!knockout_slots_away_team_id_fkey(name)")
+    .order("round").order("side").order("position");
 
-  const lockedKnockoutSlotIds = lockedKnockoutSlots?.map((s) => s.id) ?? [];
+  const allKnockoutSlots = (allKnockoutSlotsRaw ?? []) as any[];
 
-  const { data: knockoutTelePreds } = memberIds.length > 0 && lockedKnockoutSlotIds.length > 0
+  // Build match pairs: group by round+side, pair i with i+1
+  interface KOPair {
+    slotAId: string;
+    round: string;
+    teamAName: string | null;
+    teamBName: string | null;
+    slotALabel: string | null;
+    slotBLabel: string | null;
+    matchDate: string | null;
+    homeScore: number | null;
+    awayScore: number | null;
+    winnerTeamId: string | null;
+  }
+
+  const knockoutMatchPairs: KOPair[] = [];
+  const slotGroups = new Map<string, any[]>();
+  for (const s of allKnockoutSlots) {
+    const key = `${s.round}:${s.side}`;
+    if (!slotGroups.has(key)) slotGroups.set(key, []);
+    slotGroups.get(key)!.push(s);
+  }
+  for (const [, slots] of slotGroups) {
+    slots.sort((a: any, b: any) => a.position - b.position);
+    for (let i = 0; i + 1 < slots.length; i += 2) {
+      const a = slots[i], b = slots[i + 1];
+      knockoutMatchPairs.push({
+        slotAId: a.id,
+        round: a.round,
+        teamAName: a.home_team?.name ?? null,
+        teamBName: b.home_team?.name ?? null,
+        slotALabel: a.slot_label,
+        slotBLabel: b.slot_label,
+        matchDate: a.match_date,
+        homeScore: a.home_score,
+        awayScore: a.away_score,
+        winnerTeamId: a.winner_team_id,
+      });
+    }
+  }
+  // Final: left pos 0 vs right pos 0
+  const leftFinal = allKnockoutSlots.find((s: any) => s.round === "final" && s.side === "left" && s.position === 0);
+  const rightFinal = allKnockoutSlots.find((s: any) => s.round === "final" && s.side === "right" && s.position === 0);
+  if (leftFinal && rightFinal) {
+    knockoutMatchPairs.push({
+      slotAId: leftFinal.id, round: "final",
+      teamAName: leftFinal.home_team?.name ?? null, teamBName: rightFinal.home_team?.name ?? null,
+      slotALabel: leftFinal.slot_label, slotBLabel: rightFinal.slot_label,
+      matchDate: leftFinal.match_date, homeScore: leftFinal.home_score,
+      awayScore: leftFinal.away_score, winnerTeamId: leftFinal.winner_team_id,
+    });
+  }
+  // Bronze: position 0 vs position 1
+  const bronzeSlots = allKnockoutSlots.filter((s: any) => s.round === "bronze").sort((a: any, b: any) => a.position - b.position);
+  if (bronzeSlots.length >= 2) {
+    knockoutMatchPairs.push({
+      slotAId: bronzeSlots[0].id, round: "bronze",
+      teamAName: bronzeSlots[0].home_team?.name ?? null, teamBName: bronzeSlots[1].home_team?.name ?? null,
+      slotALabel: bronzeSlots[0].slot_label, slotBLabel: bronzeSlots[1].slot_label,
+      matchDate: bronzeSlots[0].match_date, homeScore: bronzeSlots[0].home_score,
+      awayScore: bronzeSlots[0].away_score, winnerTeamId: bronzeSlots[0].winner_team_id,
+    });
+  }
+
+  const roundLabel: Record<string, string> = {
+    r32: "Round of 32", r16: "Round of 16", qf: "Quarter-Final",
+    sf: "Semi-Final", final: "Final", bronze: "3rd Place",
+  };
+
+  // Telepathy: knockout pairs where teams are known (predictions stored on slotA)
+  const lockedKnockoutPairs = knockoutMatchPairs.filter(p => p.teamAName && p.teamBName);
+  const lockedKnockoutSlotAIds = lockedKnockoutPairs.map(p => p.slotAId);
+
+  const { data: knockoutTelePreds } = memberIds.length > 0 && lockedKnockoutSlotAIds.length > 0
     ? await adminClient
         .from("knockout_predictions")
         .select("user_id, predicted_home_score, predicted_away_score, slot_id")
         .in("user_id", memberIds)
-        .in("slot_id", lockedKnockoutSlotIds)
+        .in("slot_id", lockedKnockoutSlotAIds)
     : { data: [] };
 
-  const knockoutSlotById = new Map(
-    (lockedKnockoutSlots ?? []).map((s) => [s.id, s])
-  );
-
-  const roundLabel: Record<string, string> = {
-    r32: "Round of 32",
-    r16: "Round of 16",
-    qf: "Quarter-Final",
-    sf: "Semi-Final",
-    final: "Final",
-    bronze: "3rd Place",
-  };
+  const knockoutPairBySlotAId = new Map(lockedKnockoutPairs.map(p => [p.slotAId, p]));
 
   for (const p of knockoutTelePreds ?? []) {
-    const s = knockoutSlotById.get((p as any).slot_id);
-    if (!s) continue;
-    const home = (s.home_team as any)?.name ?? s.slot_label ?? "TBD";
-    const away = (s.away_team as any)?.name ?? "TBD";
-    const label = `${roundLabel[s.round] ?? s.round}: ${home} vs ${away}`;
-    const key = `ko:${s.id}`;
+    const pair = knockoutPairBySlotAId.get((p as any).slot_id);
+    if (!pair) continue;
+    const label = `${roundLabel[pair.round] ?? pair.round}: ${pair.teamAName} vs ${pair.teamBName}`;
+    const key = `ko:${pair.slotAId}`;
     if (!telepathyMatchMap.has(key)) {
       telepathyMatchMap.set(key, {
         matchId: key,
         label,
-        startsAt: s.match_date ?? "9999",
-        homeScore: s.home_score,
-        awayScore: s.away_score,
+        startsAt: pair.matchDate ?? "9999",
+        homeScore: pair.homeScore,
+        awayScore: pair.awayScore,
         predictions: [],
       });
     }
@@ -282,8 +341,8 @@ export default async function RoomDetailPage({
       userId: p.user_id,
       username: profile?.username ?? "Unknown",
       displayName: profile?.displayName ?? null,
-      home: p.predicted_home_score ?? null,
-      away: p.predicted_away_score ?? null,
+      home: (p as any).predicted_home_score ?? null,
+      away: (p as any).predicted_away_score ?? null,
     });
   }
 
@@ -318,24 +377,9 @@ export default async function RoomDetailPage({
     .neq("status", "finished")
     .order("starts_at", { ascending: true });
 
-  // Fetch knockout slots (includes undecided future rounds)
-  const { data: knockoutSlots } = await supabase
-    .from("knockout_slots")
-    .select("id, round, slot_label, match_date, home_score, away_score, home_team:teams!knockout_slots_home_team_id_fkey(name), away_team:teams!knockout_slots_away_team_id_fkey(name)")
-    .order("match_date", { ascending: true });
-
   const stageLabel: Record<string, string> = {
-    group: "Group",
-    round_of_16: "Round of 16",
-    quarter_final: "Quarter-Final",
-    semi_final: "Semi-Final",
-    third_place: "3rd Place",
-    final: "Final",
-    r32: "Round of 32",
-    r16: "Round of 16",
-    qf: "Quarter-Final",
-    sf: "Semi-Final",
-    bronze: "3rd Place",
+    group: "Group", round_of_16: "Round of 16", quarter_final: "Quarter-Final",
+    semi_final: "Semi-Final", third_place: "3rd Place", final: "Final",
   };
 
   const matchesForPicker = (upcomingMatches ?? []).map((m: any) => {
@@ -354,20 +398,21 @@ export default async function RoomDetailPage({
     };
   });
 
-  const knockoutPickerItems = (knockoutSlots ?? [])
-    .filter((k: any) => k.home_score === null)
-    .map((k: any) => {
-      const home = k.home_team?.name ?? null;
-      const away = k.away_team?.name ?? null;
-      const roundLabel = stageLabel[k.round] ?? k.round;
-      const teamsLabel = home && away ? `${home} vs ${away}` : (k.slot_label ? `(${k.slot_label})` : "TBD vs TBD");
+  // Build knockout picker items from pairs (not yet finished, show as "TeamA vs TeamB")
+  const knockoutPickerItems = knockoutMatchPairs
+    .filter(p => p.homeScore === null)
+    .map(p => {
+      const rl = roundLabel[p.round] ?? p.round;
+      const teamLabel = p.teamAName && p.teamBName
+        ? `${p.teamAName} vs ${p.teamBName}`
+        : `${p.slotALabel || "TBD"} vs ${p.slotBLabel || "TBD"}`;
       return {
-        id: k.id as string,
+        id: p.slotAId,
         type: "knockout" as const,
-        homeTeam: home ?? "TBD",
-        awayTeam: away ?? "TBD",
-        startsAt: k.match_date as string,
-        label: `${roundLabel} · ${teamsLabel}`,
+        homeTeam: p.teamAName ?? "TBD",
+        awayTeam: p.teamBName ?? "TBD",
+        startsAt: p.matchDate,
+        label: `${rl} · ${teamLabel}`,
       };
     });
 
