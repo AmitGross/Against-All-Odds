@@ -207,7 +207,7 @@ export default async function RoomDetailPage({
         {/* Section B — Standings */}
         <div className="rounded-lg border border-ink/10 bg-white p-4">
           <h3 className="mb-3 text-lg font-semibold">Standings</h3>
-          <div className="max-h-[400px] overflow-y-auto overflow-x-auto rounded-lg border border-ink/10">
+          <div className="h-[400px] overflow-y-auto overflow-x-auto rounded-lg border border-ink/10">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b border-ink/10 bg-ink/5 text-left text-xs text-ink/50 uppercase">
