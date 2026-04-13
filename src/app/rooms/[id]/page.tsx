@@ -237,7 +237,11 @@ export default async function RoomDetailPage({
     });
 
   const allPickerItems = [...matchesForPicker, ...knockoutPickerItems]
-    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+    .sort((a, b) => {
+      const ta = a.startsAt ? new Date(a.startsAt).getTime() : Infinity;
+      const tb = b.startsAt ? new Date(b.startsAt).getTime() : Infinity;
+      return ta - tb;
+    });
 
   // Fetch existing watch party slots for this room
   const { data: watchPartyRows } = await supabase
