@@ -4,6 +4,7 @@ import CopyInviteButton from "./copy-invite-button";
 import LeaveRoomButton from "./leave-room-button";
 import RenameRoomForm from "./rename-room-form";
 import WatchPartyScheduler from "./watch-party-scheduler";
+import TelepathyViewer from "./telepathy-viewer";
 
 export default async function RoomDetailPage({
   params,
@@ -171,6 +172,64 @@ export default async function RoomDetailPage({
       total: s.pts + s.globalBonus + s.roomBonus,
     }))
     .sort((a, b) => b.total - a.total);
+
+  // Fetch locked/finished matches with member predictions for Telepathy
+  const { data: telepathyPreds } = memberIds.length > 0
+    ? await supabase
+        .from("predictions")
+        .select(`
+          user_id,
+          predicted_home_score_90,
+          predicted_away_score_90,
+          matches!inner(id, is_locked, status, starts_at, home_score_90, away_score_90,
+            home_team:teams!matches_home_team_id_fkey(name),
+            away_team:teams!matches_away_team_id_fkey(name)
+          )
+        `)
+        .in("user_id", memberIds)
+        .or("matches.is_locked.eq.true,matches.status.eq.finished", { referencedTable: "matches" })
+    : { data: [] };
+
+  // Group by match
+  const telepathyMatchMap = new Map<string, {
+    matchId: string;
+    label: string;
+    startsAt: string;
+    homeScore: number | null;
+    awayScore: number | null;
+    predictions: { userId: string; username: string; displayName: string | null; home: number; away: number }[];
+  }>();
+
+  for (const p of telepathyPreds ?? []) {
+    const m = p.matches as any;
+    if (!m) continue;
+    const isRelevant = m.is_locked || m.status === "finished";
+    if (!isRelevant) continue;
+    const home = m.home_team?.name ?? "TBD";
+    const away = m.away_team?.name ?? "TBD";
+    const label = `${home} vs ${away}`;
+    if (!telepathyMatchMap.has(m.id)) {
+      telepathyMatchMap.set(m.id, {
+        matchId: m.id,
+        label,
+        startsAt: m.starts_at,
+        homeScore: m.home_score_90,
+        awayScore: m.away_score_90,
+        predictions: [],
+      });
+    }
+    const profile = profileMap.get(p.user_id);
+    telepathyMatchMap.get(m.id)!.predictions.push({
+      userId: p.user_id,
+      username: profile?.username ?? "Unknown",
+      displayName: profile?.displayName ?? null,
+      home: p.predicted_home_score_90,
+      away: p.predicted_away_score_90,
+    });
+  }
+
+  const telepathyMatches = [...telepathyMatchMap.values()]
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 
   // Fetch upcoming (non-finished) matches for watch party selector
   const { data: upcomingMatches } = await supabase
@@ -352,22 +411,21 @@ export default async function RoomDetailPage({
       {/* Sections D, e, F, G — lower row */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
 
-        {/* Section D — Watch Party Scheduler (spans 1 col) */}
-        <WatchPartyScheduler
-          roomId={id}
-          isOwner={isOwner}
-          matches={allPickerItems}
-          savedSlots={savedSlots}
-          isLocked={watchPartyLocked}
-        />
+        {/* Section D — Watch Party Scheduler (spans 2 cols) */}
+        <div className="lg:col-span-2">
+          <WatchPartyScheduler
+            roomId={id}
+            isOwner={isOwner}
+            matches={allPickerItems}
+            savedSlots={savedSlots}
+            isLocked={watchPartyLocked}
+          />
+        </div>
 
-        {/* Section e — Telepathy (placeholder) */}
-        <div className="rounded-lg border border-ink/10 bg-white p-4" />
+        {/* Section e — Telepathy */}
+        <TelepathyViewer matches={telepathyMatches} />
 
         {/* Section F — placeholder */}
-        <div className="rounded-lg border border-ink/10 bg-white p-4" />
-
-        {/* Section G — placeholder */}
         <div className="rounded-lg border border-ink/10 bg-white p-4" />
 
       </div>
