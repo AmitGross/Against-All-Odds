@@ -202,7 +202,7 @@ export default async function RoomDetailPage({
     startsAt: string;
     homeScore: number | null;
     awayScore: number | null;
-    predictions: { userId: string; username: string; displayName: string | null; home: number; away: number }[];
+    predictions: { userId: string; username: string; displayName: string | null; home: number | null; away: number | null }[];
   }>();
 
   for (const p of telepathyPreds ?? []) {
@@ -229,6 +229,79 @@ export default async function RoomDetailPage({
       home: p.predicted_home_score_90,
       away: p.predicted_away_score_90,
     });
+  }
+
+  // Also fetch knockout slot predictions (locked = teams assigned, finished = winner set)
+  const { data: lockedKnockoutSlots } = await supabase
+    .from("knockout_slots")
+    .select("id, round, slot_label, match_date, home_score, away_score, winner_team_id, home_team:teams!knockout_slots_home_team_id_fkey(name), away_team:teams!knockout_slots_away_team_id_fkey(name)")
+    .not("home_team_id", "is", null);
+
+  const lockedKnockoutSlotIds = lockedKnockoutSlots?.map((s) => s.id) ?? [];
+
+  const { data: knockoutTelePreds } = memberIds.length > 0 && lockedKnockoutSlotIds.length > 0
+    ? await supabase
+        .from("knockout_predictions")
+        .select("user_id, predicted_home_score, predicted_away_score, slot_id")
+        .in("user_id", memberIds)
+        .in("slot_id", lockedKnockoutSlotIds)
+    : { data: [] };
+
+  const knockoutSlotById = new Map(
+    (lockedKnockoutSlots ?? []).map((s) => [s.id, s])
+  );
+
+  const roundLabel: Record<string, string> = {
+    r32: "Round of 32",
+    r16: "Round of 16",
+    qf: "Quarter-Final",
+    sf: "Semi-Final",
+    final: "Final",
+    bronze: "3rd Place",
+  };
+
+  for (const p of knockoutTelePreds ?? []) {
+    const s = knockoutSlotById.get((p as any).slot_id);
+    if (!s) continue;
+    const home = (s.home_team as any)?.name ?? s.slot_label ?? "TBD";
+    const away = (s.away_team as any)?.name ?? "TBD";
+    const label = `${roundLabel[s.round] ?? s.round}: ${home} vs ${away}`;
+    const key = `ko:${s.id}`;
+    if (!telepathyMatchMap.has(key)) {
+      telepathyMatchMap.set(key, {
+        matchId: key,
+        label,
+        startsAt: s.match_date ?? "9999",
+        homeScore: s.home_score,
+        awayScore: s.away_score,
+        predictions: [],
+      });
+    }
+    const profile = profileMap.get(p.user_id);
+    telepathyMatchMap.get(key)!.predictions.push({
+      userId: p.user_id,
+      username: profile?.username ?? "Unknown",
+      displayName: profile?.displayName ?? null,
+      home: p.predicted_home_score ?? null,
+      away: p.predicted_away_score ?? null,
+    });
+  }
+
+  // Fill in all roommates who didn't submit a prediction for each match
+  for (const entry of telepathyMatchMap.values()) {
+    const submittedIds = new Set(entry.predictions.map((p) => p.userId));
+    for (const uid of memberIds) {
+      if (!submittedIds.has(uid)) {
+        const profile = profileMap.get(uid);
+        entry.predictions.push({
+          userId: uid,
+          username: profile?.username ?? "Unknown",
+          displayName: profile?.displayName ?? null,
+          home: null,
+          away: null,
+        });
+      }
+    }
   }
 
   const telepathyMatches = [...telepathyMatchMap.values()]

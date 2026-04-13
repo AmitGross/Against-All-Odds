@@ -6,8 +6,8 @@ interface Prediction {
   userId: string;
   username: string;
   displayName: string | null;
-  home: number;
-  away: number;
+  home: number | null;
+  away: number | null;
 }
 
 interface TelepathyMatch {
@@ -86,7 +86,7 @@ export default function TelepathyViewer({ matches }: Props) {
                 <tr key={p.userId} className="border-b border-ink/5 last:border-0">
                   <td className="px-3 py-2 text-sm">{p.displayName || p.username}</td>
                   <td className="px-3 py-2 text-center font-mono font-medium">
-                    {p.home} – {p.away}
+                    {p.home !== null && p.away !== null ? `${p.home} – ${p.away}` : <span className="text-ink/30">–</span>}
                   </td>
                 </tr>
               ))
