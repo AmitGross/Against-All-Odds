@@ -171,8 +171,6 @@ export default async function RoomDetailPage({
     }))
     .sort((a, b) => b.total - a.total);
 
-  const hasScores = sortedStandings.some((s) => s.total > 0);
-
   return (
     <div className="space-y-6">
       {/* Section A — full-width header */}
@@ -203,10 +201,12 @@ export default async function RoomDetailPage({
         </div>
       </div>
 
-      {/* Standings */}
-      <div>
-        <h3 className="mb-3 text-lg font-semibold">Standings</h3>
-        {hasScores ? (
+      {/* Sections B + C — two-column grid */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_2fr]">
+
+        {/* Section B — Standings */}
+        <div className="rounded-lg border border-ink/10 bg-white p-4">
+          <h3 className="mb-3 text-lg font-semibold">Standings</h3>
           <div className="overflow-x-auto overflow-hidden rounded-lg border border-ink/10">
             <table className="w-full text-sm">
               <thead>
@@ -255,34 +255,32 @@ export default async function RoomDetailPage({
               </tbody>
             </table>
           </div>
-        ) : (
-          <p className="text-sm text-ink/60">
-            No scores yet. Standings update after matches are finalized.
-          </p>
-        )}
-      </div>
-
-      {/* Members List */}
-      <div>
-        <h3 className="mb-3 text-lg font-semibold">Members</h3>
-        <div className="space-y-2">
-          {(members ?? []).map((m: any) => (
-            <div
-              key={m.user_id}
-              className="flex items-center justify-between rounded-lg border border-ink/10 bg-white px-4 py-3"
-            >
-              <div>
-                <p className="text-sm font-medium">
-                  {m.profiles?.display_name || m.profiles?.username || "Unknown"}
-                </p>
-                <p className="text-xs text-ink/40">{m.profiles?.username}</p>
-              </div>
-              <span className="text-xs text-ink/40">
-                {m.role === "owner" ? "👑 Owner" : "Member"}
-              </span>
-            </div>
-          ))}
         </div>
+
+        {/* Section C — placeholder */}
+        <div className="rounded-lg border border-ink/10 bg-white p-4">
+          {/* Members List */}
+          <h3 className="mb-3 text-lg font-semibold">Members</h3>
+          <div className="space-y-2">
+            {(members ?? []).map((m: any) => (
+              <div
+                key={m.user_id}
+                className="flex items-center justify-between rounded-lg border border-ink/10 bg-white px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-medium">
+                    {m.profiles?.display_name || m.profiles?.username || "Unknown"}
+                  </p>
+                  <p className="text-xs text-ink/40">{m.profiles?.username}</p>
+                </div>
+                <span className="text-xs text-ink/40">
+                  {m.role === "owner" ? "👑 Owner" : "Member"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );
