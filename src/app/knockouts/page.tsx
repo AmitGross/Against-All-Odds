@@ -76,7 +76,6 @@ function buildRounds(slots: KnockoutSlot[], side: "left" | "right"): string[][] 
       .filter((s) => s.round === round && s.side === side)
       .sort((a, b) => a.position - b.position);
     return roundSlots.map((s) => {
-      if (s.winner_team) return s.winner_team.name;
       if (s.home_team) return s.home_team.name;
       return s.slot_label || "";
     });
