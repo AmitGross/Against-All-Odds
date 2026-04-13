@@ -173,22 +173,27 @@ export default async function RoomDetailPage({
     }))
     .sort((a, b) => b.total - a.total);
 
-  // Fetch locked/finished matches with member predictions for Telepathy
-  const { data: telepathyPreds } = memberIds.length > 0
+  // Fetch locked/finished match IDs first (the .or on a referenced table is unreliable)
+  const { data: lockedMatchRows } = await supabase
+    .from("matches")
+    .select("id, is_locked, status, starts_at, home_score_90, away_score_90, home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)")
+    .or("is_locked.eq.true,status.eq.finished");
+
+  const lockedMatchIds = lockedMatchRows?.map((m) => m.id) ?? [];
+
+  // Fetch member predictions for those matches
+  const { data: telepathyPreds } = memberIds.length > 0 && lockedMatchIds.length > 0
     ? await supabase
         .from("predictions")
-        .select(`
-          user_id,
-          predicted_home_score_90,
-          predicted_away_score_90,
-          matches!inner(id, is_locked, status, starts_at, home_score_90, away_score_90,
-            home_team:teams!matches_home_team_id_fkey(name),
-            away_team:teams!matches_away_team_id_fkey(name)
-          )
-        `)
+        .select("user_id, predicted_home_score_90, predicted_away_score_90, match_id")
         .in("user_id", memberIds)
-        .or("matches.is_locked.eq.true,matches.status.eq.finished", { referencedTable: "matches" })
+        .in("match_id", lockedMatchIds)
     : { data: [] };
+
+  // Build a lookup map from match id → match row
+  const lockedMatchById = new Map(
+    (lockedMatchRows ?? []).map((m) => [m.id, m])
+  );
 
   // Group by match
   const telepathyMatchMap = new Map<string, {
@@ -201,12 +206,10 @@ export default async function RoomDetailPage({
   }>();
 
   for (const p of telepathyPreds ?? []) {
-    const m = p.matches as any;
+    const m = lockedMatchById.get((p as any).match_id);
     if (!m) continue;
-    const isRelevant = m.is_locked || m.status === "finished";
-    if (!isRelevant) continue;
-    const home = m.home_team?.name ?? "TBD";
-    const away = m.away_team?.name ?? "TBD";
+    const home = (m.home_team as any)?.name ?? "TBD";
+    const away = (m.away_team as any)?.name ?? "TBD";
     const label = `${home} vs ${away}`;
     if (!telepathyMatchMap.has(m.id)) {
       telepathyMatchMap.set(m.id, {
