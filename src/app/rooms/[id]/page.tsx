@@ -349,14 +349,28 @@ export default async function RoomDetailPage({
 
       </div>
 
-      {/* Section D — Watch Party Scheduler */}
-      <WatchPartyScheduler
-        roomId={id}
-        isOwner={isOwner}
-        matches={allPickerItems}
-        savedSlots={savedSlots}
-        isLocked={watchPartyLocked}
-      />
+      {/* Sections D, e, F, G — lower row */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+
+        {/* Section D — Watch Party Scheduler (spans 1 col) */}
+        <WatchPartyScheduler
+          roomId={id}
+          isOwner={isOwner}
+          matches={allPickerItems}
+          savedSlots={savedSlots}
+          isLocked={watchPartyLocked}
+        />
+
+        {/* Section e — Telepathy (placeholder) */}
+        <div className="rounded-lg border border-ink/10 bg-white p-4" />
+
+        {/* Section F — placeholder */}
+        <div className="rounded-lg border border-ink/10 bg-white p-4" />
+
+        {/* Section G — placeholder */}
+        <div className="rounded-lg border border-ink/10 bg-white p-4" />
+
+      </div>
     </div>
   );
 }
