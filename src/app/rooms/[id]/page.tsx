@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import CopyInviteButton from "./copy-invite-button";
 import LeaveRoomButton from "./leave-room-button";
 import RenameRoomForm from "./rename-room-form";
@@ -181,9 +182,10 @@ export default async function RoomDetailPage({
 
   const lockedMatchIds = lockedMatchRows?.map((m) => m.id) ?? [];
 
-  // Fetch member predictions for those matches
+  // Fetch member predictions for those matches — use admin client to bypass RLS (own-row-only)
+  const adminClient = createAdminClient();
   const { data: telepathyPreds } = memberIds.length > 0 && lockedMatchIds.length > 0
-    ? await supabase
+    ? await adminClient
         .from("predictions")
         .select("user_id, predicted_home_score_90, predicted_away_score_90, match_id")
         .in("user_id", memberIds)
@@ -240,7 +242,7 @@ export default async function RoomDetailPage({
   const lockedKnockoutSlotIds = lockedKnockoutSlots?.map((s) => s.id) ?? [];
 
   const { data: knockoutTelePreds } = memberIds.length > 0 && lockedKnockoutSlotIds.length > 0
-    ? await supabase
+    ? await adminClient
         .from("knockout_predictions")
         .select("user_id, predicted_home_score, predicted_away_score, slot_id")
         .in("user_id", memberIds)
