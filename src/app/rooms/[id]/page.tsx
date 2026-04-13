@@ -398,9 +398,9 @@ export default async function RoomDetailPage({
     };
   });
 
-  // Build knockout picker items from pairs (not yet finished, show as "TeamA vs TeamB")
+  // Build knockout picker items from pairs (only show matches with no declared winner yet)
   const knockoutPickerItems = knockoutMatchPairs
-    .filter(p => p.homeScore === null)
+    .filter(p => p.winnerTeamId === null)
     .map(p => {
       const rl = roundLabel[p.round] ?? p.round;
       const teamLabel = p.teamAName && p.teamBName
