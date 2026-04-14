@@ -8,7 +8,9 @@ A Next.js + Supabase prediction game for the 2026 FIFA World Cup.
 - **Group predictions** — pick group winners and runners-up
 - **Knockout predictions** — predict the full bracket
 - **Global predictions** — golden boot, champion, top scorer, etc.
+- **ML model** — built-in prediction model suggests scores for every match; auto-retrains after each result
 - **Leaderboard** — ranked by scoring rules (see `src/config/scoring.ts`)
+- **About page** — in-app guide covering rules, scoring, rooms, and the model
 - **Rooms** — private prediction rooms with:
   - **A** Header with invite code
   - **B** Live standings table (sorted by points)
