@@ -233,3 +233,27 @@ export async function toggleSlotLock(roomId: string, slot: number) {
   revalidatePath(`/rooms/${roomId}`);
   return { success: true, locked: newLocked };
 }
+
+export async function saveCanvas(roomId: string, data: string) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: membership } = await supabase
+    .from("room_memberships")
+    .select("role")
+    .eq("room_id", roomId)
+    .eq("user_id", user.id)
+    .single();
+  if (!membership) return { error: "Not a member of this room." };
+
+  // Limit canvas data size to 2MB
+  if (data.length > 2_000_000) return { error: "Canvas too large." };
+
+  const { error } = await supabase
+    .from("room_canvas")
+    .upsert({ room_id: roomId, data, updated_at: new Date().toISOString() }, { onConflict: "room_id" });
+  if (error) return { error: error.message };
+
+  return { success: true };
+}

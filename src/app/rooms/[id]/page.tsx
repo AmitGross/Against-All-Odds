@@ -5,6 +5,7 @@ import LeaveRoomButton from "./leave-room-button";
 import RenameRoomForm from "./rename-room-form";
 import WatchPartyScheduler from "./watch-party-scheduler";
 import TelepathyViewer from "./telepathy-viewer";
+import RoomCanvas from "./room-canvas";
 
 export default async function RoomDetailPage({
   params,
@@ -437,6 +438,14 @@ export default async function RoomDetailPage({
     isLocked: r.is_locked as boolean,
   }));
 
+  // Fetch shared canvas snapshot
+  const { data: canvasRow } = await supabase
+    .from("room_canvas")
+    .select("data")
+    .eq("room_id", id)
+    .single();
+  const canvasData = canvasRow?.data ?? "";
+
   return (
     <div className="space-y-6">
       {/* Section A — full-width header */}
@@ -548,6 +557,10 @@ export default async function RoomDetailPage({
         <div className="rounded-lg border border-ink/10 bg-white p-4" />
 
       </div>
+
+      {/* Section G — Drawing Board (full width) */}
+      <RoomCanvas roomId={id} initialData={canvasData} />
+
     </div>
   );
 }
