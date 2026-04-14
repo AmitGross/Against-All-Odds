@@ -11,7 +11,6 @@ interface NavLinksProps {
 
 const mainLinks = [
   { href: "/", label: "Home" },
-  { href: "/about", label: "About" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/rooms", label: "Rooms" },
   { href: "/matches", label: "Matches" },
