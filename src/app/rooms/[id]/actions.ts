@@ -349,7 +349,6 @@ export async function usePeekToken(
   roomId: string,
   target: { matchId: string } | { knockoutSlotId: string }
 ) {
-  // Authenticate via user session, but use admin client for all DB ops
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
@@ -357,27 +356,21 @@ export async function usePeekToken(
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const admin = createAdminClient();
 
-  // Check membership
-  const { data: membership } = await admin
-    .from("room_memberships")
-    .select("role")
-    .eq("room_id", roomId)
-    .eq("user_id", user.id)
-    .single();
-  if (!membership) return { error: "Not a member of this room." };
+  const matchId = "matchId" in target ? target.matchId : null;
+  const slotId = "knockoutSlotId" in target ? target.knockoutSlotId : null;
 
-  // Get granted amount and count actual reveals as source of truth for used
-  const [{ data: tokenRow }, { count: usedCount }] = await Promise.all([
+  // Fetch membership, token grant, and reveal count all in parallel
+  const [{ data: membership }, { data: tokenRow }, { count: usedCount }] = await Promise.all([
+    admin.from("room_memberships").select("role").eq("room_id", roomId).eq("user_id", user.id).single(),
     admin.from("room_peek_tokens").select("granted").eq("room_id", roomId).eq("user_id", user.id).single(),
     admin.from("room_peek_reveals").select("*", { count: "exact", head: true }).eq("room_id", roomId).eq("user_id", user.id),
   ]);
 
+  if (!membership) return { error: "Not a member of this room." };
+
   const granted = tokenRow?.granted ?? 0;
   const used = usedCount ?? 0;
   if (granted === 0) return { error: "You have no peek tokens." };
-
-  const matchId = "matchId" in target ? target.matchId : null;
-  const slotId = "knockoutSlotId" in target ? target.knockoutSlotId : null;
 
   // Check if already revealed for this match — idempotent, no charge
   const { data: existing } = await (matchId
@@ -385,7 +378,6 @@ export async function usePeekToken(
     : admin.from("room_peek_reveals").select("id").eq("room_id", roomId).eq("user_id", user.id).eq("knockout_slot_id", slotId!).maybeSingle());
   if (existing) return { success: true };
 
-  // Check balance only after confirming this match isn't already peeked
   if (used >= granted) return { error: "No peek tokens remaining." };
 
   // Insert reveal
@@ -400,13 +392,6 @@ export async function usePeekToken(
     if (revealErr.code === "23505") return { success: true };
     return { error: revealErr.message };
   }
-
-  // Sync used counter
-  await admin
-    .from("room_peek_tokens")
-    .update({ used: used + 1 })
-    .eq("room_id", roomId)
-    .eq("user_id", user.id);
 
   revalidatePath(`/rooms/${roomId}`);
   return { success: true };
@@ -454,38 +439,30 @@ export async function useSnipeToken(
   targetUserId: string,
   target: { matchId: string } | { knockoutSlotId: string }
 ) {
-  // Authenticate via user session, but use admin client for all DB ops
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
+  if (targetUserId === user.id) return { error: "You can't snipe yourself." };
+
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const admin = createAdminClient();
 
-  // Check membership
-  const { data: membership } = await admin
-    .from("room_memberships")
-    .select("role")
-    .eq("room_id", roomId)
-    .eq("user_id", user.id)
-    .single();
-  if (!membership) return { error: "Not a member of this room." };
+  const matchId = "matchId" in target ? target.matchId : null;
+  const slotId = "knockoutSlotId" in target ? target.knockoutSlotId : null;
 
-  // Can't snipe yourself
-  if (targetUserId === user.id) return { error: "You can't snipe yourself." };
-
-  // Get granted amount and count actual reveals as source of truth for used
-  const [{ data: tokenRow }, { count: usedCount }] = await Promise.all([
+  // Fetch membership, token grant, and reveal count all in parallel
+  const [{ data: membership }, { data: tokenRow }, { count: usedCount }] = await Promise.all([
+    admin.from("room_memberships").select("role").eq("room_id", roomId).eq("user_id", user.id).single(),
     admin.from("room_snipe_tokens").select("granted").eq("room_id", roomId).eq("user_id", user.id).single(),
     admin.from("room_snipe_reveals").select("*", { count: "exact", head: true }).eq("room_id", roomId).eq("user_id", user.id),
   ]);
 
+  if (!membership) return { error: "Not a member of this room." };
+
   const granted = tokenRow?.granted ?? 0;
   const used = usedCount ?? 0;
   if (granted === 0) return { error: "You have no snipe tokens." };
-
-  const matchId = "matchId" in target ? target.matchId : null;
-  const slotId = "knockoutSlotId" in target ? target.knockoutSlotId : null;
 
   // Check if already revealed for this (match, target) combo — idempotent, no charge
   const { data: existing } = await (matchId
@@ -493,7 +470,6 @@ export async function useSnipeToken(
     : admin.from("room_snipe_reveals").select("id").eq("room_id", roomId).eq("user_id", user.id).eq("target_user_id", targetUserId).eq("knockout_slot_id", slotId!).maybeSingle());
   if (existing) return { success: true };
 
-  // Check balance only after confirming this (match, target) isn't already sniped
   if (used >= granted) return { error: "No snipe tokens remaining." };
 
   // Insert reveal
@@ -509,13 +485,6 @@ export async function useSnipeToken(
     if (revealErr.code === "23505") return { success: true };
     return { error: revealErr.message };
   }
-
-  // Sync used counter
-  await admin
-    .from("room_snipe_tokens")
-    .update({ used: used + 1 })
-    .eq("room_id", roomId)
-    .eq("user_id", user.id);
 
   revalidatePath(`/rooms/${roomId}`);
   return { success: true };

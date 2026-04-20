@@ -551,7 +551,8 @@ export default async function RoomDetailPage({
   );
 
   const peekGranted = peekTokenRow?.granted ?? 0;
-  const peekUsed = peekTokenRow?.used ?? 0;
+  // Derive used from actual reveal rows (same source of truth as usePeekToken action)
+  const peekUsed = peekRevealRows?.length ?? 0;
 
   // Fetch current user's snipe token balance and reveals
   const snipeTokenRow = user
@@ -581,7 +582,8 @@ export default async function RoomDetailPage({
   );
 
   const snipeGranted = snipeTokenRow?.granted ?? 0;
-  const snipeUsed = snipeTokenRow?.used ?? 0;
+  // Derive used from actual reveal rows (same source of truth as useSnipeToken action)
+  const snipeUsed = snipeRevealRows?.length ?? 0;
 
   // If owner, fetch all members' peek + snipe token rows for the management panel
   const { data: allPeekTokens } = isOwner
