@@ -11,22 +11,23 @@ interface MatchInfo {
 
 function formatMatchDateTime(iso: string) {
   const d = new Date(iso);
-  const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const date = d.toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" });
+  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   return `${date} · ${time}`;
 }
 
 function useCountdown(targetIso: string) {
-  const [diff, setDiff] = useState(() => new Date(targetIso).getTime() - Date.now());
+  const [diff, setDiff] = useState<number | null>(null);
 
   useEffect(() => {
+    setDiff(new Date(targetIso).getTime() - Date.now());
     const timer = setInterval(() => {
       setDiff(new Date(targetIso).getTime() - Date.now());
     }, 1000);
     return () => clearInterval(timer);
   }, [targetIso]);
 
-  if (diff <= 0) return null; // match started
+  if (diff === null || diff <= 0) return null; // not yet hydrated or match started
 
   const totalSecs = Math.floor(diff / 1000);
   const totalHours = Math.floor(totalSecs / 3600);

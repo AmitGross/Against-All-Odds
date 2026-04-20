@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState, useTransition } from "react";
-import { usePeekToken } from "./actions";
+import { usePeekToken, useSnipeToken } from "./actions";
 
 interface Prediction {
   userId: string;
@@ -29,18 +29,29 @@ interface TelepathyMatch {
 interface Props {
   matches: TelepathyMatch[];
   roomId: string;
+  currentUserId: string;
   peekGranted: number;
   peekUsed: number;
   peekedMatchIds: Set<string>;
+  snipeGranted: number;
+  snipeUsed: number;
+  // key: `${matchId}::${targetUserId}`
+  snipedTargetKeys: Set<string>;
 }
 
-export default function TelepathyViewer({ matches, roomId, peekGranted, peekUsed, peekedMatchIds }: Props) {
+export default function TelepathyViewer({ matches, roomId, currentUserId, peekGranted, peekUsed, peekedMatchIds, snipeGranted, snipeUsed, snipedTargetKeys }: Props) {
   const defaultIndex = Math.max(0, matches.findIndex((m) => !m.isLocked));
   const [index, setIndex] = useState(defaultIndex);
   const [localPeeked, setLocalPeeked] = useState<Set<string>>(new Set(peekedMatchIds));
   const [localUsed, setLocalUsed] = useState(peekUsed);
   const [pending, startTransition] = useTransition();
   const [peekError, setPeekError] = useState<string | null>(null);
+
+  // Snipe state
+  const [localSniped, setLocalSniped] = useState<Set<string>>(new Set(snipedTargetKeys));
+  const [localSnipeUsed, setLocalSnipeUsed] = useState(snipeUsed);
+  const [snipePending, startSnipeTransition] = useTransition();
+  const [snipeError, setSnipeError] = useState<string | null>(null);
 
   if (matches.length === 0) {
     return (
@@ -53,9 +64,14 @@ export default function TelepathyViewer({ matches, roomId, peekGranted, peekUsed
   const match = matches[index];
   const isPeeked = localPeeked.has(match.matchId);
   const peeksRemaining = peekGranted - localUsed;
+  const snipesRemaining = snipeGranted - localSnipeUsed;
   const isGroupMatch = !match.matchId.startsWith("ko:");
   const canPeek = !match.isLocked && !isPeeked && peeksRemaining > 0 && isGroupMatch;
   const showScores = match.isLocked || isPeeked;
+
+  function snipeKey(matchId: string, targetUserId: string) {
+    return `${matchId}::${targetUserId}`;
+  }
 
   function handlePeek() {
     setPeekError(null);
@@ -71,6 +87,24 @@ export default function TelepathyViewer({ matches, roomId, peekGranted, peekUsed
       } else {
         setLocalPeeked((prev) => new Set([...prev, match.matchId]));
         setLocalUsed((u) => u + 1);
+      }
+    });
+  }
+
+  function handleSnipe(targetUserId: string) {
+    setSnipeError(null);
+    startSnipeTransition(async () => {
+      const isKo = match.matchId.startsWith("ko:");
+      const target = isKo
+        ? { knockoutSlotId: match.matchId.replace("ko:", "") }
+        : { matchId: match.matchId };
+
+      const result = await useSnipeToken(roomId, targetUserId, target);
+      if (result.error) {
+        setSnipeError(result.error);
+      } else {
+        setLocalSniped((prev) => new Set([...prev, snipeKey(match.matchId, targetUserId)]));
+        setLocalSnipeUsed((u) => u + 1);
       }
     });
   }
@@ -105,7 +139,7 @@ export default function TelepathyViewer({ matches, roomId, peekGranted, peekUsed
           </div>
           {!match.isLocked ? (
             <p className="text-xs text-ink/40 mt-0.5">
-              Kicks off {new Date(match.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              Kicks off {new Date(match.startsAt).toLocaleDateString("en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
             </p>
           ) : match.homeScore !== null && match.awayScore !== null ? (
             <p className="text-xs text-ink/40 mt-0.5">
@@ -127,21 +161,28 @@ export default function TelepathyViewer({ matches, roomId, peekGranted, peekUsed
       {!match.isLocked && (
         <div className="flex flex-col items-center gap-1">
           {isPeeked ? (
-            <p className="text-xs text-amber-600 font-medium">Peeked - predictions revealed</p>
+            <p className="text-xs text-amber-600 font-medium">Peeked - all predictions revealed</p>
           ) : canPeek ? (
             <button
               onClick={handlePeek}
               disabled={pending}
               className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
             >
-              {pending ? "Using peek..." : `Peek (${peeksRemaining} left)`}
+              {pending ? "Using peek..." : `👁️ Peek all (${peeksRemaining} left)`}
             </button>
-          ) : peekGranted === 0 ? (
-            <p className="text-xs text-ink/30">The room owner has not granted you any peeks.</p>
-          ) : (
+          ) : peekGranted === 0 ? null : (
             <p className="text-xs text-ink/30">No peeks remaining ({peekGranted} used).</p>
           )}
           {peekError && <p className="text-xs text-red-500">{peekError}</p>}
+          {snipeError && <p className="text-xs text-red-500">{snipeError}</p>}
+        </div>
+      )}
+
+      {/* Token counters */}
+      {!match.isLocked && !isPeeked && (peekGranted > 0 || snipeGranted > 0) && (
+        <div className="flex items-center justify-center gap-4 text-xs text-ink/40">
+          {peekGranted > 0 && <span>👁️ {peeksRemaining} peek{peeksRemaining !== 1 ? "s" : ""} left</span>}
+          {snipeGranted > 0 && <span>🎯 {snipesRemaining} snipe{snipesRemaining !== 1 ? "s" : ""} left</span>}
         </div>
       )}
 
@@ -152,29 +193,56 @@ export default function TelepathyViewer({ matches, roomId, peekGranted, peekUsed
             <tr className="border-b border-ink/10 bg-ink/5 text-xs text-ink/50 uppercase">
               <th className="px-3 py-2 text-left">Player</th>
               <th className="px-3 py-2 text-center">Pred.</th>
+              {!match.isLocked && !isPeeked && snipeGranted > 0 && (
+                <th className="px-3 py-2 text-center w-16">Snipe</th>
+              )}
             </tr>
           </thead>
           <tbody>
             {match.predictions.length === 0 ? (
               <tr>
-                <td colSpan={2} className="px-3 py-4 text-center text-xs text-ink/40">
+                <td colSpan={3} className="px-3 py-4 text-center text-xs text-ink/40">
                   No predictions submitted.
                 </td>
               </tr>
             ) : (
-              match.predictions.map((p) => (
-                <tr key={p.userId} className="border-b border-ink/5 last:border-0">
-                  <td className="px-3 py-2 text-sm">{p.displayName || p.username}</td>
-                  <td className="px-3 py-2 text-center font-mono font-medium">
-                    {showScores
-                      ? p.home !== null && p.away !== null
-                        ? `${p.home} - ${p.away}`
-                        : <span className="text-ink/30">-</span>
-                      : <span className="text-ink/40">?</span>
-                    }
-                  </td>
-                </tr>
-              ))
+              match.predictions.map((p) => {
+                const isSelf = p.userId === currentUserId;
+                const isSniped = localSniped.has(snipeKey(match.matchId, p.userId));
+                const showThisScore = showScores || isSniped;
+                const canSnipeThis = !match.isLocked && !isPeeked && !isSelf && !isSniped && snipesRemaining > 0;
+                return (
+                  <tr key={p.userId} className="border-b border-ink/5 last:border-0">
+                    <td className="px-3 py-2 text-sm">{p.displayName || p.username}</td>
+                    <td className="px-3 py-2 text-center font-mono font-medium">
+                      {showThisScore
+                        ? p.home !== null && p.away !== null
+                          ? `${p.home} - ${p.away}`
+                          : <span className="text-ink/30">-</span>
+                        : <span className="text-ink/40">?</span>
+                      }
+                    </td>
+                    {!match.isLocked && !isPeeked && snipeGranted > 0 && (
+                      <td className="px-3 py-2 text-center">
+                        {isSelf ? null : isSniped ? (
+                          <span className="text-xs text-rose-400">🎯</span>
+                        ) : canSnipeThis ? (
+                          <button
+                            onClick={() => handleSnipe(p.userId)}
+                            disabled={snipePending}
+                            className="rounded px-2 py-0.5 text-xs font-medium bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 transition-colors"
+                            title={`Snipe ${p.displayName || p.username}'s prediction`}
+                          >
+                            🎯
+                          </button>
+                        ) : (
+                          <span className="text-xs text-ink/20">🎯</span>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

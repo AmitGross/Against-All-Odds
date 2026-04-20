@@ -349,12 +349,16 @@ export async function usePeekToken(
   roomId: string,
   target: { matchId: string } | { knockoutSlotId: string }
 ) {
+  // Authenticate via user session, but use admin client for all DB ops
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated." };
 
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+
   // Check membership
-  const { data: membership } = await supabase
+  const { data: membership } = await admin
     .from("room_memberships")
     .select("role")
     .eq("room_id", roomId)
@@ -362,57 +366,186 @@ export async function usePeekToken(
     .single();
   if (!membership) return { error: "Not a member of this room." };
 
-  // Check token balance
-  const { data: tokenRow } = await supabase
-    .from("room_peek_tokens")
-    .select("granted, used")
-    .eq("room_id", roomId)
-    .eq("user_id", user.id)
-    .single();
+  // Get granted amount and count actual reveals as source of truth for used
+  const [{ data: tokenRow }, { count: usedCount }] = await Promise.all([
+    admin.from("room_peek_tokens").select("granted").eq("room_id", roomId).eq("user_id", user.id).single(),
+    admin.from("room_peek_reveals").select("*", { count: "exact", head: true }).eq("room_id", roomId).eq("user_id", user.id),
+  ]);
 
   const granted = tokenRow?.granted ?? 0;
-  const used = tokenRow?.used ?? 0;
-  if (used >= granted) return { error: "No peek tokens remaining." };
+  const used = usedCount ?? 0;
+  if (granted === 0) return { error: "You have no peek tokens." };
 
-  // Check not already revealed
   const matchId = "matchId" in target ? target.matchId : null;
   const slotId = "knockoutSlotId" in target ? target.knockoutSlotId : null;
 
-  const existingQuery = matchId
-    ? supabase
-        .from("room_peek_reveals")
-        .select("id")
-        .eq("room_id", roomId)
-        .eq("user_id", user.id)
-        .eq("match_id", matchId)
-    : supabase
-        .from("room_peek_reveals")
-        .select("id")
-        .eq("room_id", roomId)
-        .eq("user_id", user.id)
-        .eq("knockout_slot_id", slotId!);
+  // Check if already revealed for this match — idempotent, no charge
+  const { data: existing } = await (matchId
+    ? admin.from("room_peek_reveals").select("id").eq("room_id", roomId).eq("user_id", user.id).eq("match_id", matchId).maybeSingle()
+    : admin.from("room_peek_reveals").select("id").eq("room_id", roomId).eq("user_id", user.id).eq("knockout_slot_id", slotId!).maybeSingle());
+  if (existing) return { success: true };
 
-  const { data: existing } = await existingQuery.maybeSingle();
-  if (existing) return { error: "Already peeked at this match." };
+  // Check balance only after confirming this match isn't already peeked
+  if (used >= granted) return { error: "No peek tokens remaining." };
 
   // Insert reveal
-  const { error: revealErr } = await supabase
+  const { error: revealErr } = await admin
     .from("room_peek_reveals")
     .insert({
       room_id: roomId,
       user_id: user.id,
       ...(matchId ? { match_id: matchId } : { knockout_slot_id: slotId }),
     });
-  if (revealErr) return { error: revealErr.message };
+  if (revealErr) {
+    if (revealErr.code === "23505") return { success: true };
+    return { error: revealErr.message };
+  }
 
-  // Increment used count
-  const { error: tokenErr } = await supabase
+  // Sync used counter
+  await admin
     .from("room_peek_tokens")
-    .upsert(
-      { room_id: roomId, user_id: user.id, granted, used: used + 1 },
-      { onConflict: "room_id,user_id" }
-    );
-  if (tokenErr) return { error: tokenErr.message };
+    .update({ used: used + 1 })
+    .eq("room_id", roomId)
+    .eq("user_id", user.id);
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { success: true };
+}
+
+export async function setAllSnipeTokens(
+  roomId: string,
+  grants: { userId: string; granted: number }[]
+) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: room } = await supabase
+    .from("rooms")
+    .select("created_by, room_rules_locked")
+    .eq("id", roomId)
+    .single();
+  if (!room || room.created_by !== user.id) return { error: "Only the room owner can change this." };
+
+  if (room.room_rules_locked || await isTournamentStarted(supabase)) {
+    return { error: "Room rules are locked." };
+  }
+
+  if (grants.some((g) => g.granted < 0)) return { error: "Token count cannot be negative." };
+
+  const rows = grants.map((g) => ({
+    room_id: roomId,
+    user_id: g.userId,
+    granted: g.granted,
+  }));
+
+  const { error } = await supabase
+    .from("room_snipe_tokens")
+    .upsert(rows, { onConflict: "room_id,user_id" });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { success: true };
+}
+
+/** Player uses one snipe token to reveal a specific player's prediction for one match. */
+export async function useSnipeToken(
+  roomId: string,
+  targetUserId: string,
+  target: { matchId: string } | { knockoutSlotId: string }
+) {
+  // Authenticate via user session, but use admin client for all DB ops
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+
+  // Check membership
+  const { data: membership } = await admin
+    .from("room_memberships")
+    .select("role")
+    .eq("room_id", roomId)
+    .eq("user_id", user.id)
+    .single();
+  if (!membership) return { error: "Not a member of this room." };
+
+  // Can't snipe yourself
+  if (targetUserId === user.id) return { error: "You can't snipe yourself." };
+
+  // Get granted amount and count actual reveals as source of truth for used
+  const [{ data: tokenRow }, { count: usedCount }] = await Promise.all([
+    admin.from("room_snipe_tokens").select("granted").eq("room_id", roomId).eq("user_id", user.id).single(),
+    admin.from("room_snipe_reveals").select("*", { count: "exact", head: true }).eq("room_id", roomId).eq("user_id", user.id),
+  ]);
+
+  const granted = tokenRow?.granted ?? 0;
+  const used = usedCount ?? 0;
+  if (granted === 0) return { error: "You have no snipe tokens." };
+
+  const matchId = "matchId" in target ? target.matchId : null;
+  const slotId = "knockoutSlotId" in target ? target.knockoutSlotId : null;
+
+  // Check if already revealed for this (match, target) combo — idempotent, no charge
+  const { data: existing } = await (matchId
+    ? admin.from("room_snipe_reveals").select("id").eq("room_id", roomId).eq("user_id", user.id).eq("target_user_id", targetUserId).eq("match_id", matchId).maybeSingle()
+    : admin.from("room_snipe_reveals").select("id").eq("room_id", roomId).eq("user_id", user.id).eq("target_user_id", targetUserId).eq("knockout_slot_id", slotId!).maybeSingle());
+  if (existing) return { success: true };
+
+  // Check balance only after confirming this (match, target) isn't already sniped
+  if (used >= granted) return { error: "No snipe tokens remaining." };
+
+  // Insert reveal
+  const { error: revealErr } = await admin
+    .from("room_snipe_reveals")
+    .insert({
+      room_id: roomId,
+      user_id: user.id,
+      target_user_id: targetUserId,
+      ...(matchId ? { match_id: matchId } : { knockout_slot_id: slotId }),
+    });
+  if (revealErr) {
+    if (revealErr.code === "23505") return { success: true };
+    return { error: revealErr.message };
+  }
+
+  // Sync used counter
+  await admin
+    .from("room_snipe_tokens")
+    .update({ used: used + 1 })
+    .eq("room_id", roomId)
+    .eq("user_id", user.id);
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { success: true };
+}
+
+/** Room owner resets all peek + snipe used counts to 0 for every member. */
+export async function resetAllTokenUsed(roomId: string) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { data: room } = await supabase
+    .from("rooms")
+    .select("created_by")
+    .eq("id", roomId)
+    .single();
+  if (!room || room.created_by !== user.id) return { error: "Only the room owner can do this." };
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+
+  // Delete all reveal rows (source of truth) and reset cached used counters
+  const [{ error: e1 }, { error: e2 }, { error: e3 }, { error: e4 }] = await Promise.all([
+    admin.from("room_peek_reveals").delete().eq("room_id", roomId),
+    admin.from("room_snipe_reveals").delete().eq("room_id", roomId),
+    admin.from("room_peek_tokens").update({ used: 0 }).eq("room_id", roomId),
+    admin.from("room_snipe_tokens").update({ used: 0 }).eq("room_id", roomId),
+  ]);
+
+  if (e1 || e2 || e3 || e4) return { error: e1?.message ?? e2?.message ?? e3?.message ?? e4?.message ?? "Reset failed." };
 
   revalidatePath(`/rooms/${roomId}`);
   return { success: true };

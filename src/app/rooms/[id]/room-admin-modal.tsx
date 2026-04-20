@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { setAllPeekTokens, toggleRulesLock } from "./actions";
+import { setAllPeekTokens, setAllSnipeTokens, toggleRulesLock, resetAllTokenUsed } from "./actions";
 
 interface Member {
   userId: string;
@@ -10,20 +10,28 @@ interface Member {
 interface Props {
   roomId: string;
   members: Member[];          // all members, including the owner
-  peeksPerPlayer: number;     // current uniform grant value (0 if not set)
+  peeksPerPlayer: number;     // current uniform peek grant value
+  snipesPerPlayer: number;    // current uniform snipe grant value
   rulesLocked: boolean;
   tournamentStarted: boolean;
 }
 
-export default function RoomAdminModal({ roomId, members, peeksPerPlayer, rulesLocked, tournamentStarted }: Props) {
+export default function RoomAdminModal({ roomId, members, peeksPerPlayer, snipesPerPlayer, rulesLocked, tournamentStarted }: Props) {
   const [open, setOpen] = useState(false);
   const [locked, setLocked] = useState(rulesLocked);
   const [peekCount, setPeekCount] = useState(peeksPerPlayer);
+  const [snipeCount, setSnipeCount] = useState(snipesPerPlayer);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [snipeSaveError, setSnipeSaveError] = useState<string | null>(null);
+  const [snipeSaveSuccess, setSnipeSaveSuccess] = useState(false);
   const [lockError, setLockError] = useState<string | null>(null);
   const [saveTransition, startSave] = useTransition();
+  const [snipeSaveTransition, startSnipeSave] = useTransition();
   const [lockTransition, startLock] = useTransition();
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetTransition, startReset] = useTransition();
 
   const isFullyLocked = locked || tournamentStarted;
 
@@ -38,6 +46,43 @@ export default function RoomAdminModal({ roomId, members, peeksPerPlayer, rulesL
       } else {
         setSaveSuccess(true);
       }
+    });
+  }
+
+  function handleSnipeSave() {
+    setSnipeSaveError(null);
+    setSnipeSaveSuccess(false);
+    startSnipeSave(async () => {
+      const entries = members.map((m) => ({ userId: m.userId, granted: snipeCount }));
+      const result = await setAllSnipeTokens(roomId, entries);
+      if (result.error) {
+        setSnipeSaveError(result.error);
+      } else {
+        setSnipeSaveSuccess(true);
+      }
+    });
+  }
+
+  function handleReset() {
+    setResetError(null);
+    setResetSuccess(false);
+    startReset(async () => {
+      const result = await resetAllTokenUsed(roomId);
+      if (result.error) {
+        setResetError(result.error);
+      } else {
+        setResetSuccess(true);
+      }
+    });
+  }
+
+  function handleReset() {
+    setResetError(null);
+    setResetSuccess(false);
+    startReset(async () => {
+      const result = await resetAllTokenUsed(roomId);
+      if (result.error) setResetError(result.error);
+      else setResetSuccess(true);
     });
   }
 
@@ -121,7 +166,7 @@ export default function RoomAdminModal({ roomId, members, peeksPerPlayer, rulesL
                 <div>
                   <p className="text-sm font-medium">👁️ Peek Tokens per player</p>
                   <p className="text-xs text-ink/50 mt-0.5">
-                    How many times each player can peek a group-stage match before kick-off.
+                    Reveals ALL players&apos; predictions for one match before kick-off.
                     {isFullyLocked && " (Locked — read only.)"}
                   </p>
                 </div>
@@ -157,6 +202,68 @@ export default function RoomAdminModal({ roomId, members, peeksPerPlayer, rulesL
                     </button>
                   </div>
                 )}
+              </div>
+
+              {/* Snipe tokens section */}
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium">🎯 Snipe Tokens per player</p>
+                  <p className="text-xs text-ink/50 mt-0.5">
+                    Reveals ONE chosen player&apos;s prediction for one match before kick-off.
+                    {isFullyLocked && " (Locked — read only.)"}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={0}
+                    value={snipeCount}
+                    onChange={(e) => {
+                      setSnipeCount(Math.max(0, parseInt(e.target.value, 10) || 0));
+                      setSnipeSaveSuccess(false);
+                      setSnipeSaveError(null);
+                    }}
+                    disabled={isFullyLocked}
+                    className="w-20 rounded-lg border border-ink/20 px-3 py-2 text-center text-sm disabled:bg-ink/5 disabled:text-ink/40 focus:outline-none focus:ring-1 focus:ring-field"
+                  />
+                  <span className="text-xs text-ink/50">snipes per player</span>
+                </div>
+
+                {!isFullyLocked && (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      {snipeSaveError && <p className="text-xs text-red-500">{snipeSaveError}</p>}
+                      {snipeSaveSuccess && <p className="text-xs text-field font-medium">Saved!</p>}
+                    </div>
+                    <button
+                      onClick={handleSnipeSave}
+                      disabled={snipeSaveTransition}
+                      className="rounded-lg bg-field px-4 py-1.5 text-sm font-medium text-white hover:bg-field/90 disabled:opacity-50 transition-colors"
+                    >
+                      {snipeSaveTransition ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Reset used counts */}
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 space-y-2">
+                <p className="text-sm font-medium text-red-700">🔄 Reset token usage</p>
+                <p className="text-xs text-red-500">Resets all peek &amp; snipe used counts to 0 for every player. Reveals already made stay visible.</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    {resetError && <p className="text-xs text-red-500">{resetError}</p>}
+                    {resetSuccess && <p className="text-xs text-green-600 font-medium">Reset done!</p>}
+                  </div>
+                  <button
+                    onClick={handleReset}
+                    disabled={resetTransition}
+                    className="rounded-lg bg-red-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+                  >
+                    {resetTransition ? "Resetting..." : "Reset Used"}
+                  </button>
+                </div>
               </div>
 
             </div>

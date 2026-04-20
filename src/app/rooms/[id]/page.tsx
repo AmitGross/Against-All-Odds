@@ -7,6 +7,7 @@ import WatchPartyScheduler from "./watch-party-scheduler";
 import TelepathyViewer from "./telepathy-viewer";
 import RoomCanvas from "./room-canvas";
 import RoomAdminModal from "./room-admin-modal";
+import RoomActivityLog from "./room-activity-log";
 
 export default async function RoomDetailPage({
   params,
@@ -58,9 +59,16 @@ export default async function RoomDetailPage({
 
   // Fetch prediction scores with joined prediction + match data for stats
   const memberIds = (members ?? []).map((m: any) => m.user_id as string);
+
+  // Use admin client: prediction_scores inner-joins predictions, which has RLS
+  // restricting to own rows — so the user session client would silently drop all
+  // other members' scores.
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const adminClient = createAdminClient();
+
   const { data: scores } =
     memberIds.length > 0
-      ? await supabase
+      ? await adminClient
           .from("prediction_scores")
           .select(`
             user_id, base_points,
@@ -77,8 +85,6 @@ export default async function RoomDetailPage({
     .eq("room_id", id);
 
   // Fetch global + knockout prediction points for members
-  const { createAdminClient } = await import("@/lib/supabase/admin");
-  const adminClient = createAdminClient();
   const [{ data: globalPreds }, { data: knockoutPreds }] = memberIds.length > 0
     ? await Promise.all([
         adminClient.from("global_predictions").select("user_id, points_awarded").in("user_id", memberIds),
@@ -276,7 +282,9 @@ export default async function RoomDetailPage({
     if (!slotGroups.has(key)) slotGroups.set(key, []);
     slotGroups.get(key)!.push(s);
   }
-  for (const [, slots] of slotGroups) {
+  for (const [key, slots] of slotGroups) {
+    // final and bronze are handled separately below
+    if (key.startsWith("final:") || key.startsWith("bronze:")) continue;
     slots.sort((a: any, b: any) => a.position - b.position);
     for (let i = 0; i + 1 < slots.length; i += 2) {
       const a = slots[i], b = slots[i + 1];
@@ -372,30 +380,27 @@ export default async function RoomDetailPage({
     });
   }
 
-  // Add next upcoming (unlocked) group match(es) — show with ? in the viewer
+  // Add all upcoming (unlocked) group matches — show with ? in the viewer
   const { data: nextUnlockedRows } = await supabase
     .from("matches")
     .select("id, starts_at, home_score_90, away_score_90, home_team:teams!matches_home_team_id_fkey(name, flag_url), away_team:teams!matches_away_team_id_fkey(name, flag_url)")
     .eq("is_locked", false)
     .neq("status", "finished")
-    .order("starts_at", { ascending: true })
-    .limit(20);
+    .order("starts_at", { ascending: true });
 
   if (nextUnlockedRows && nextUnlockedRows.length > 0) {
-    const firstKickoff = (nextUnlockedRows[0] as any).starts_at;
-    const nextBatch = (nextUnlockedRows as any[]).filter((m) => m.starts_at === firstKickoff);
-    const nextBatchIds = nextBatch.map((m) => m.id);
+    const allUpcomingIds = (nextUnlockedRows as any[]).map((m) => m.id);
 
-    // Fetch predictions for these upcoming matches (bypasses RLS so we see all members)
-    const { data: upcomingPreds } = memberIds.length > 0 && nextBatchIds.length > 0
+    // Fetch predictions for all upcoming matches (bypasses RLS so we see all members)
+    const { data: upcomingPreds } = memberIds.length > 0 && allUpcomingIds.length > 0
       ? await adminClient
           .from("predictions")
           .select("user_id, predicted_home_score_90, predicted_away_score_90, match_id")
           .in("user_id", memberIds)
-          .in("match_id", nextBatchIds)
+          .in("match_id", allUpcomingIds)
       : { data: [] };
 
-    for (const m of nextBatch) {
+    for (const m of nextUnlockedRows as any[]) {
       const home = m.home_team?.name ?? "TBD";
       const away = m.away_team?.name ?? "TBD";
       telepathyMatchMap.set(m.id, {
@@ -428,6 +433,11 @@ export default async function RoomDetailPage({
 
   // Fill in all roommates who didn't submit a prediction for each match
   for (const entry of telepathyMatchMap.values()) {
+    // Deduplicate first (guard against duplicate rows from DB joins)
+    const seen = new Map<string, typeof entry.predictions[0]>();
+    for (const p of entry.predictions) seen.set(p.userId, p);
+    entry.predictions = [...seen.values()];
+
     const submittedIds = new Set(entry.predictions.map((p) => p.userId));
     for (const uid of memberIds) {
       if (!submittedIds.has(uid)) {
@@ -543,7 +553,37 @@ export default async function RoomDetailPage({
   const peekGranted = peekTokenRow?.granted ?? 0;
   const peekUsed = peekTokenRow?.used ?? 0;
 
-  // If owner, fetch all members' peek token rows for the management panel
+  // Fetch current user's snipe token balance and reveals
+  const snipeTokenRow = user
+    ? await supabase
+        .from("room_snipe_tokens")
+        .select("granted, used")
+        .eq("room_id", id)
+        .eq("user_id", user.id)
+        .maybeSingle()
+        .then((r) => r.data)
+    : null;
+
+  const { data: snipeRevealRows } = user
+    ? await supabase
+        .from("room_snipe_reveals")
+        .select("match_id, knockout_slot_id, target_user_id")
+        .eq("room_id", id)
+        .eq("user_id", user.id)
+    : { data: [] };
+
+  // key: `${matchId ?? 'ko:'+knockoutSlotId}::${targetUserId}`
+  const snipedTargetKeys = new Set<string>(
+    (snipeRevealRows ?? []).map((r: any) => {
+      const mid = r.match_id ?? `ko:${r.knockout_slot_id}`;
+      return `${mid}::${r.target_user_id}`;
+    })
+  );
+
+  const snipeGranted = snipeTokenRow?.granted ?? 0;
+  const snipeUsed = snipeTokenRow?.used ?? 0;
+
+  // If owner, fetch all members' peek + snipe token rows for the management panel
   const { data: allPeekTokens } = isOwner
     ? await supabase
         .from("room_peek_tokens")
@@ -553,6 +593,17 @@ export default async function RoomDetailPage({
 
   const peekTokenMap = new Map<string, { granted: number; used: number }>(
     (allPeekTokens ?? []).map((t: any) => [t.user_id, { granted: t.granted, used: t.used }])
+  );
+
+  const { data: allSnipeTokens } = isOwner
+    ? await supabase
+        .from("room_snipe_tokens")
+        .select("user_id, granted, used")
+        .eq("room_id", id)
+    : { data: [] };
+
+  const snipeTokenMap = new Map<string, { granted: number; used: number }>(
+    (allSnipeTokens ?? []).map((t: any) => [t.user_id, { granted: t.granted, used: t.used }])
   );
 
   // Fetch first group match start time (for tournament-locked logic)
@@ -575,6 +626,93 @@ export default async function RoomDetailPage({
     .single();
   const canvasData = canvasRow?.data ?? "";
 
+  // Fetch all room activity (peek + snipe reveals) for the activity log
+  const [{ data: allPeekReveals }, { data: allSnipeReveals }] = await Promise.all([
+    adminClient
+      .from("room_peek_reveals")
+      .select("id, user_id, match_id, knockout_slot_id, revealed_at")
+      .eq("room_id", id)
+      .order("revealed_at", { ascending: false })
+      .limit(50),
+    adminClient
+      .from("room_snipe_reveals")
+      .select("id, user_id, target_user_id, match_id, knockout_slot_id, revealed_at")
+      .eq("room_id", id)
+      .order("revealed_at", { ascending: false })
+      .limit(50),
+  ]);
+
+  // Clean up old reveals beyond the 50 most recent per table (fire-and-forget)
+  const peekIdsToKeep = (allPeekReveals ?? []).map((r: any) => r.id);
+  const snipeIdsToKeep = (allSnipeReveals ?? []).map((r: any) => r.id);
+  if (peekIdsToKeep.length === 50) {
+    // There may be older rows — delete anything not in the top 50
+    adminClient
+      .from("room_peek_reveals")
+      .delete()
+      .eq("room_id", id)
+      .not("id", "in", `(${peekIdsToKeep.map((i: string) => `"${i}"`).join(",")})`)
+      .then(() => {});
+  }
+  if (snipeIdsToKeep.length === 50) {
+    adminClient
+      .from("room_snipe_reveals")
+      .delete()
+      .eq("room_id", id)
+      .not("id", "in", `(${snipeIdsToKeep.map((i: string) => `"${i}"`).join(",")})`)
+      .then(() => {});
+  }
+
+  interface ActivityEntry {
+    id: string;
+    type: "peek" | "snipe";
+    username: string;
+    displayName: string | null;
+    targetUsername?: string;
+    targetDisplayName?: string | null;
+    matchLabel: string;
+    timestamp: string;
+  }
+
+  const activityLog: ActivityEntry[] = [];
+
+  for (const r of allPeekReveals ?? []) {
+    const profile = profileMap.get((r as any).user_id);
+    const mid = (r as any).match_id;
+    const slotId = (r as any).knockout_slot_id;
+    const key = mid ?? `ko:${slotId}`;
+    const matchEntry = telepathyMatchMap.get(key);
+    activityLog.push({
+      id: (r as any).id,
+      type: "peek",
+      username: profile?.username ?? "Unknown",
+      displayName: profile?.displayName ?? null,
+      matchLabel: matchEntry?.label ?? "a match",
+      timestamp: (r as any).revealed_at,
+    });
+  }
+
+  for (const r of allSnipeReveals ?? []) {
+    const profile = profileMap.get((r as any).user_id);
+    const target = profileMap.get((r as any).target_user_id);
+    const mid = (r as any).match_id;
+    const slotId = (r as any).knockout_slot_id;
+    const key = mid ?? `ko:${slotId}`;
+    const matchEntry = telepathyMatchMap.get(key);
+    activityLog.push({
+      id: (r as any).id,
+      type: "snipe",
+      username: profile?.username ?? "Unknown",
+      displayName: profile?.displayName ?? null,
+      targetUsername: target?.username ?? "Unknown",
+      targetDisplayName: target?.displayName ?? null,
+      matchLabel: matchEntry?.label ?? "a match",
+      timestamp: (r as any).revealed_at,
+    });
+  }
+
+  activityLog.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
   return (
     <div className="space-y-6">
       {/* Section A — full-width header */}
@@ -594,6 +732,7 @@ export default async function RoomDetailPage({
                 rulesLocked={room.room_rules_locked ?? false}
                 tournamentStarted={tournamentStarted}
                 peeksPerPlayer={peekTokenMap.size > 0 ? Math.max(...[...peekTokenMap.values()].map(t => t.granted)) : 0}
+                snipesPerPlayer={snipeTokenMap.size > 0 ? Math.max(...[...snipeTokenMap.values()].map(t => t.granted)) : 0}
                 members={(members ?? []).map((m: any) => ({ userId: m.user_id as string }))}
               />
             )}
@@ -694,33 +833,54 @@ export default async function RoomDetailPage({
         <TelepathyViewer
           matches={telepathyMatches}
           roomId={id}
+          currentUserId={user.id}
           peekGranted={peekGranted}
           peekUsed={peekUsed}
           peekedMatchIds={peekedMatchIds}
+          snipeGranted={snipeGranted}
+          snipeUsed={snipeUsed}
+          snipedTargetKeys={snipedTargetKeys}
         />
 
-        {/* Section F — Peek token balance */}
+        {/* Section F — Token balances */}
         <div className="rounded-lg border border-ink/10 bg-white p-4">
-          <h3 className="mb-3 text-sm font-semibold">👁️ Peek Tokens</h3>
-          <div className="flex flex-col items-center justify-center h-full gap-1 min-h-[80px]">
-            <p className="text-2xl font-bold">{peekGranted - peekUsed}</p>
-            <p className="text-xs text-ink/50">peeks remaining</p>
-            {peekGranted > 0 && (
-              <p className="text-xs text-ink/30">{peekUsed} of {peekGranted} used</p>
-            )}
-            {peekGranted === 0 && (
-              <p className="text-xs text-ink/30 text-center mt-1">
-                {isOwner
-                  ? "Open Room Admin (⚙️) to set peek tokens for everyone."
-                  : "The room owner hasn't granted any peek tokens yet."}
-              </p>
-            )}
+          <h3 className="mb-3 text-sm font-semibold">Tokens</h3>
+          <div className="flex gap-6 flex-wrap">
+            <div className="flex flex-col items-center gap-1 flex-1 min-w-[100px]">
+              <p className="text-xs text-ink/50 font-medium">👁️ Peeks</p>
+              <p className="text-2xl font-bold">{peekGranted - peekUsed}</p>
+              <p className="text-xs text-ink/40">remaining</p>
+              {peekGranted > 0 && (
+                <p className="text-xs text-ink/30">{peekUsed} / {peekGranted} used</p>
+              )}
+              {peekGranted === 0 && (
+                <p className="text-xs text-ink/30 text-center">
+                  {isOwner ? "Set via ⚙️ Room Admin." : "None granted yet."}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col items-center gap-1 flex-1 min-w-[100px]">
+              <p className="text-xs text-ink/50 font-medium">🎯 Snipes</p>
+              <p className="text-2xl font-bold">{snipeGranted - snipeUsed}</p>
+              <p className="text-xs text-ink/40">remaining</p>
+              {snipeGranted > 0 && (
+                <p className="text-xs text-ink/30">{snipeUsed} / {snipeGranted} used</p>
+              )}
+              {snipeGranted === 0 && (
+                <p className="text-xs text-ink/30 text-center">
+                  {isOwner ? "Set via ⚙️ Room Admin." : "None granted yet."}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
       </div>
 
-      {/* Section G — Drawing Board (full width) */}
+      {/* Section G — Activity Log */}
+      <RoomActivityLog entries={activityLog} />
+
+      {/* Section H — Drawing Board (full width) */}
       <RoomCanvas roomId={id} initialData={canvasData} />
 
     </div>
