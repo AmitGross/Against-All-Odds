@@ -63,6 +63,7 @@ export default function RoomAdminModal({ roomId, members, peeksPerPlayer, snipes
   );
   const [qCorrectLoading, setQCorrectLoading] = useState<Record<string, boolean>>({});
   const [qCorrectError, setQCorrectError] = useState<Record<string, string>>({});
+  const [qCorrectFeedback, setQCorrectFeedback] = useState<Record<string, number>>({});
 
   const [activeTab, setActiveTab] = useState<"tokens" | "questions">("tokens");
 
@@ -138,6 +139,7 @@ export default function RoomAdminModal({ roomId, members, peeksPerPlayer, snipes
       setQCorrectError((p) => ({ ...p, [qId]: result.error! }));
     } else {
       setQCorrect((p) => ({ ...p, [qId]: answer }));
+      setQCorrectFeedback((p) => ({ ...p, [qId]: result.winnersCount ?? 0 }));
     }
   }
 
@@ -364,14 +366,30 @@ export default function RoomAdminModal({ roomId, members, peeksPerPlayer, snipes
                                     </span>
                                   </div>
 
-                                  {/* Mark correct answer — only for approved questions on locked/finished matches */}
-                                  {q.status === "approved" && q.isMatchLocked && (
+                                  {/* Mark correct answer — available any time after approval */}
+                                  {q.status === "approved" && (
                                     <div className="pt-1 border-t border-ink/8 space-y-1">
                                       {qCorrect[q.id] ? (
-                                        <p className="text-[10px] text-green-600 font-medium">
-                                          ✓ Correct: {qCorrect[q.id]!.toUpperCase()} — {qCorrect[q.id] === "a" ? q.optionA : q.optionB}
-                                          <span className="ml-1.5 text-ink/30">({q.points}pt{q.points !== 1 ? "s" : ""} awarded)</span>
-                                        </p>
+                                        <div className="space-y-1">
+                                          <p className="text-[10px] text-green-600 font-medium">
+                                            ✓ Correct: {qCorrect[q.id]!.toUpperCase()} — {qCorrect[q.id] === "a" ? q.optionA : q.optionB}
+                                            <span className="ml-1.5 text-ink/30">
+                                              ({q.points}pt{q.points !== 1 ? "s" : ""} awarded to {qCorrectFeedback[q.id] ?? "?"} player{(qCorrectFeedback[q.id] ?? 0) !== 1 ? "s" : ""})
+                                            </span>
+                                          </p>
+                                          <div className="flex gap-1.5">
+                                            {(["a", "b"] as const).filter((o) => o !== qCorrect[q.id]).map((opt) => (
+                                              <button
+                                                key={opt}
+                                                onClick={() => handleMarkCorrect(q.id, opt)}
+                                                disabled={qCorrectLoading[q.id]}
+                                                className="text-[10px] text-ink/30 hover:text-red-400 transition-colors disabled:opacity-40"
+                                              >
+                                                Change to {opt.toUpperCase()}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
                                       ) : (
                                         <div className="flex flex-wrap items-center gap-1.5">
                                           <span className="text-[10px] text-ink/40">Mark correct:</span>

@@ -708,9 +708,8 @@ export async function setQuestionCorrectAnswer(
     .eq("room_id", roomId)
     .single();
   if (!question) return { error: "Question not found." };
-  if (question.correct_answer !== null) return { error: "Correct answer already set." };
 
-  // Mark correct answer
+  // Mark correct answer (overrideable — admin may correct a mistake)
   const { error: updateErr } = await adminClient
     .from("match_questions")
     .update({ correct_answer: answer })
@@ -718,13 +717,14 @@ export async function setQuestionCorrectAnswer(
   if (updateErr) return { error: updateErr.message };
 
   // Fetch all votes for this question
-  const { data: votes } = await adminClient
+  const { data: votes, error: votesErr } = await adminClient
     .from("match_question_votes")
     .select("user_id, answer")
     .eq("question_id", questionId)
     .eq("room_id", roomId);
+  if (votesErr) return { error: votesErr.message };
 
-  // Award points to correct voters
+  // Award points to correct voters (upsert so re-marking updates existing rows)
   const pts = question.points ?? 1;
   const winners = (votes ?? []).filter((v: any) => v.answer === answer);
   if (winners.length > 0) {
@@ -734,13 +734,26 @@ export async function setQuestionCorrectAnswer(
       user_id: v.user_id,
       points_awarded: pts,
     }));
+    const { error: insertErr } = await adminClient
+      .from("match_question_scores")
+      .upsert(rows, { onConflict: "room_id,question_id,user_id" });
+    if (insertErr) return { error: insertErr.message };
+  }
+  // Remove scores for users who now answered wrong (if admin changed the answer)
+  if ((votes ?? []).length > winners.length) {
+    const loserIds = (votes ?? [])
+      .filter((v: any) => v.answer !== answer)
+      .map((v: any) => v.user_id);
     await adminClient
       .from("match_question_scores")
-      .upsert(rows, { onConflict: "room_id,question_id,user_id", ignoreDuplicates: true });
+      .delete()
+      .eq("room_id", roomId)
+      .eq("question_id", questionId)
+      .in("user_id", loserIds);
   }
 
   revalidatePath(`/rooms/${roomId}`);
-  return { success: true };
+  return { success: true, winnersCount: winners.length };
 }
 
 export async function voteOnQuestion(
