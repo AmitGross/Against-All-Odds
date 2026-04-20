@@ -16,10 +16,11 @@ export default async function LeaderboardPage() {
 
   // ── Global leaderboard ──
   const admin = createAdminClient();
-  const [{ data: scores }, { data: globalPredScores }, { data: knockoutPredScores }] = await Promise.all([
+  const [{ data: scores }, { data: globalPredScores }, { data: knockoutPredScores }, { data: questionScores }] = await Promise.all([
     supabase.from("prediction_scores").select("user_id, global_points"),
     admin.from("global_predictions").select("user_id, points_awarded"),
     admin.from("knockout_predictions").select("user_id, points_awarded"),
+    admin.from("match_question_scores").select("user_id, points_awarded"),
   ]);
 
   const userPoints = new Map<string, number>();
@@ -39,6 +40,12 @@ export default async function LeaderboardPage() {
     userPoints.set(
       k.user_id,
       (userPoints.get(k.user_id) ?? 0) + k.points_awarded
+    );
+  }
+  for (const q of (questionScores ?? []) as { user_id: string; points_awarded: number }[]) {
+    userPoints.set(
+      q.user_id,
+      (userPoints.get(q.user_id) ?? 0) + q.points_awarded
     );
   }
 
@@ -123,9 +130,10 @@ export default async function LeaderboardPage() {
         .eq("room_id", room.id);
 
       // Global + knockout prediction points for members
-      const [{ data: memberGlobalPreds }, { data: memberKnockoutPreds }] = await Promise.all([
+      const [{ data: memberGlobalPreds }, { data: memberKnockoutPreds }, { data: memberQuestionScores }] = await Promise.all([
         admin.from("global_predictions").select("user_id, points_awarded").in("user_id", memberIds),
         admin.from("knockout_predictions").select("user_id, points_awarded").in("user_id", memberIds),
+        admin.from("match_question_scores").select("user_id, points_awarded").eq("room_id", room.id).in("user_id", memberIds),
       ]);
 
       const pts = new Map<string, { base: number; bonus: number; global: number }>();
@@ -145,6 +153,10 @@ export default async function LeaderboardPage() {
       for (const k of memberKnockoutPreds ?? []) {
         const e = pts.get(k.user_id);
         if (e) e.global += k.points_awarded;
+      }
+      for (const q of memberQuestionScores ?? []) {
+        const e = pts.get(q.user_id);
+        if (e) e.global += q.points_awarded;
       }
 
       const memberProfileMap = new Map(

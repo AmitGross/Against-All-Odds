@@ -6,8 +6,10 @@ import RenameRoomForm from "./rename-room-form";
 import WatchPartyScheduler from "./watch-party-scheduler";
 import TelepathyViewer from "./telepathy-viewer";
 import RoomCanvas from "./room-canvas";
-import RoomAdminModal from "./room-admin-modal";
+import RoomAdminModal, { type AdminQuestion } from "./room-admin-modal";
 import RoomActivityLog from "./room-activity-log";
+import MatchQuestionForm from "./match-question-form";
+import MatchQuestionVoter, { type VotableQuestion } from "./match-question-voter";
 
 export default async function RoomDetailPage({
   params,
@@ -728,6 +730,139 @@ export default async function RoomDetailPage({
 
   activityLog.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
+  // Next 10 upcoming unlocked matches for the question submission form
+  const questionMatches = (nextUnlockedRows ?? []).slice(0, 10).map((m: any) => ({
+    id: m.id as string,
+    homeName: (m.home_team?.name ?? "TBD") as string,
+    awayName: (m.away_team?.name ?? "TBD") as string,
+    homeFlagUrl: (m.home_team?.flag_url ?? null) as string | null,
+    awayFlagUrl: (m.away_team?.flag_url ?? null) as string | null,
+    startsAt: (m.starts_at ?? null) as string | null,
+  }));
+
+  // Fetch current user's submitted questions for this room
+  const { data: myQuestions } = await supabase
+    .from("match_questions")
+    .select("id, match_id, question_text, option_a, option_b, status")
+    .eq("room_id", id)
+    .eq("submitted_by", user.id);
+
+  const existingQuestions = (myQuestions ?? []).map((q: any) => ({
+    id: q.id as string,
+    matchId: q.match_id as string,
+    questionText: q.question_text as string,
+    optionA: q.option_a as string,
+    optionB: q.option_b as string,
+    status: q.status as "pending" | "approved" | "rejected",
+  }));
+
+  const pendingQuestionCount = existingQuestions.filter((q) => q.status === "pending").length;
+
+  // For admin: fetch ALL questions in this room across all matches
+  // Columns correct_answer + points added in migration 028 — fail safely if not yet run
+  let allRoomQuestions: any[] = [];
+  {
+    const { data, error: aqErr } = await adminClient
+      .from("match_questions")
+      .select("id, match_id, submitted_by, question_text, option_a, option_b, status, correct_answer, points")
+      .eq("room_id", id)
+      .order("created_at", { ascending: true });
+    if (!aqErr) allRoomQuestions = data ?? [];
+    else {
+      // Fallback without new columns (pre-028)
+      const { data: fallback } = await adminClient
+        .from("match_questions")
+        .select("id, match_id, submitted_by, question_text, option_a, option_b, status")
+        .eq("room_id", id)
+        .order("created_at", { ascending: true });
+      allRoomQuestions = fallback ?? [];
+    }
+  }
+
+  // Fetch match details (name + lock status) for all referenced matches
+  const questionMatchIds = [...new Set((allRoomQuestions ?? []).map((q: any) => q.match_id as string))];
+  const { data: questionMatchRows } = questionMatchIds.length > 0
+    ? await adminClient
+        .from("matches")
+        .select("id, is_locked, status, home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)")
+        .in("id", questionMatchIds)
+    : { data: [] };
+
+  // Build approved-count-per-match map (for admin modal optimistic state)
+  const approvedCountByMatch = new Map<string, number>();
+  for (const q of allRoomQuestions ?? []) {
+    if ((q as any).status === "approved") {
+      const mid = (q as any).match_id as string;
+      approvedCountByMatch.set(mid, (approvedCountByMatch.get(mid) ?? 0) + 1);
+    }
+  }
+
+  // Build match label + lock maps
+  const matchLabelMap = new Map(
+    (questionMatchRows ?? []).map((m: any) => [
+      m.id,
+      `${m.home_team?.name ?? "TBD"} vs ${m.away_team?.name ?? "TBD"}`,
+    ])
+  );
+  const matchLockedMap = new Map(
+    (questionMatchRows ?? []).map((m: any) => [m.id, !!(m.is_locked || m.status === "finished")])
+  );
+
+  const adminQuestions: AdminQuestion[] = (allRoomQuestions ?? []).map((q: any) => {
+    const mid = q.match_id as string;
+    const profile = profileMap.get(q.submitted_by as string);
+    return {
+      id: q.id as string,
+      matchId: mid,
+      matchLabel: matchLabelMap.get(mid) ?? "Unknown Match",
+      submitterName: profile?.displayName ?? profile?.username ?? "Unknown",
+      questionText: q.question_text as string,
+      optionA: q.option_a as string,
+      optionB: q.option_b as string,
+      correctAnswer: (q.correct_answer ?? null) as "a" | "b" | null,
+      status: q.status as "pending" | "approved" | "rejected",
+      points: (q.points ?? 1) as number,
+      isMatchLocked: matchLockedMap.get(mid) ?? false,
+      approvedCountForMatch: approvedCountByMatch.get(mid) ?? 0,
+    };
+  });
+
+  // Approved questions per match_id → shown in Section C (upcoming/unlocked matches only)
+  const upcomingMatchIds = new Set((nextUnlockedRows ?? []).map((m: any) => m.id as string));
+
+  // Fetch current user's votes on approved questions
+  // (table may not exist yet if migrations haven't run — fail safely)
+  const approvedQuestionIds = adminQuestions
+    .filter((q) => q.status === "approved" && upcomingMatchIds.has(q.matchId))
+    .map((q) => q.id);
+  let myVotes: { question_id: string; answer: string }[] = [];
+  if (approvedQuestionIds.length > 0) {
+    const { data, error: votesErr } = await supabase
+      .from("match_question_votes")
+      .select("question_id, answer")
+      .eq("user_id", user.id)
+      .eq("room_id", id)
+      .in("question_id", approvedQuestionIds);
+    if (!votesErr) myVotes = (data ?? []) as typeof myVotes;
+  }
+  const myVoteMap = new Map(myVotes.map((v) => [v.question_id, v.answer as "a" | "b"]));
+
+  // Build votable questions per match
+  const votableQuestionsByMatch = new Map<string, VotableQuestion[]>();
+  for (const q of adminQuestions) {
+    if (q.status === "approved" && upcomingMatchIds.has(q.matchId)) {
+      if (!votableQuestionsByMatch.has(q.matchId)) votableQuestionsByMatch.set(q.matchId, []);
+      votableQuestionsByMatch.get(q.matchId)!.push({
+        id: q.id,
+        questionText: q.questionText,
+        optionA: q.optionA,
+        optionB: q.optionB,
+        points: q.points,
+        myVote: myVoteMap.get(q.id) ?? null,
+      });
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Section A — full-width header */}
@@ -749,6 +884,7 @@ export default async function RoomDetailPage({
                 peeksPerPlayer={peekTokenMap.size > 0 ? Math.max(...[...peekTokenMap.values()].map(t => t.granted)) : 0}
                 snipesPerPlayer={snipeTokenMap.size > 0 ? Math.max(...[...snipeTokenMap.values()].map(t => t.granted)) : 0}
                 members={(members ?? []).map((m: any) => ({ userId: m.user_id as string }))}
+                allQuestions={adminQuestions}
               />
             )}
             <LeaveRoomButton roomId={room.id} isOwner={isOwner} otherMembers={otherMembers} />
@@ -879,6 +1015,13 @@ export default async function RoomDetailPage({
                     <p className="text-xs text-ink/40">
                       {m.watchPlace ? m.watchPlace : "where to watch"}
                     </p>
+                    {/* Approved questions for this match — users vote A or B */}
+                    {(votableQuestionsByMatch.get(m.id) ?? []).length > 0 && (
+                      <MatchQuestionVoter
+                        roomId={id}
+                        questions={votableQuestionsByMatch.get(m.id)!}
+                      />
+                    )}
                   </div>
                 </div>
               );
@@ -949,8 +1092,16 @@ export default async function RoomDetailPage({
 
       </div>
 
-      {/* Section G — Activity Log */}
-      <RoomActivityLog entries={activityLog} />
+      {/* Section G — Activity Log + Question Submission */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <RoomActivityLog entries={activityLog} />
+        <MatchQuestionForm
+          roomId={id}
+          matches={questionMatches}
+          existingQuestions={existingQuestions}
+          pendingCount={pendingQuestionCount}
+        />
+      </div>
 
       {/* Section H — Drawing Board (full width) */}
       <RoomCanvas roomId={id} initialData={canvasData} />

@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 export interface ActivityEntry {
   id: string;
   type: "peek" | "snipe";
@@ -20,33 +18,16 @@ function formatTime(iso: string) {
     d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-const INITIAL_COUNT = 5;
-
 export default function RoomActivityLog({ entries }: { entries: ActivityEntry[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? entries : entries.slice(0, INITIAL_COUNT);
-
   return (
-    <div className="rounded-lg border border-ink/10 bg-white px-5 py-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold">📋 Activity Log</h3>
-        {!expanded && entries.length > INITIAL_COUNT && (
-          <button onClick={() => setExpanded(true)} className="text-xs text-field hover:underline">
-            +{entries.length - INITIAL_COUNT} more
-          </button>
-        )}
-        {expanded && (
-          <button onClick={() => setExpanded(false)} className="text-xs text-ink/40 hover:underline">
-            Show less
-          </button>
-        )}
-      </div>
+    <div className="rounded-lg border border-ink/10 bg-white px-5 py-4 flex flex-col">
+      <h3 className="text-sm font-semibold mb-3">📋 Activity Log</h3>
 
       {entries.length === 0 ? (
         <p className="text-xs text-ink/30">No activity yet. Peek or snipe a match to see it here.</p>
       ) : (
-        <div className={`flex flex-col divide-y divide-ink/5 overflow-y-auto transition-all ${expanded ? "max-h-[600px]" : ""}`}>
-          {visible.map((e) => {
+        <div className="flex flex-col divide-y divide-ink/5 overflow-y-auto max-h-[540px]">
+          {entries.map((e) => {
             const actor = e.displayName || e.username;
             const target = e.targetDisplayName || e.targetUsername;
             return (

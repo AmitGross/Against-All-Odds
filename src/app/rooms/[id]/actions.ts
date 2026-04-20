@@ -520,6 +520,279 @@ export async function resetAllTokenUsed(roomId: string) {
   return { success: true };
 }
 
+export async function submitMatchQuestion(
+  roomId: string,
+  matchId: string,
+  questionText: string,
+  optionA: string,
+  optionB: string,
+) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  // Trim inputs
+  const text = questionText.trim();
+  const a = optionA.trim();
+  const b = optionB.trim();
+  if (!text || !a || !b) return { error: "All fields are required." };
+  if (text.length > 200) return { error: "Question too long (max 200 chars)." };
+  if (a.length > 100 || b.length > 100) return { error: "Option too long (max 100 chars)." };
+
+  // Must be a room member
+  const { data: membership } = await supabase
+    .from("room_memberships")
+    .select("role")
+    .eq("room_id", roomId)
+    .eq("user_id", user.id)
+    .single();
+  if (!membership) return { error: "Not a member of this room." };
+
+  // Match must exist and must not be locked yet
+  const { data: match } = await supabase
+    .from("matches")
+    .select("id, is_locked, status")
+    .eq("id", matchId)
+    .single();
+  if (!match) return { error: "Match not found." };
+  if (match.is_locked || match.status === "finished") {
+    return { error: "This match has already started — no more questions can be submitted." };
+  }
+
+  // Enforce max 10 pending questions per user across this room
+  const { count } = await supabase
+    .from("match_questions")
+    .select("id", { count: "exact", head: true })
+    .eq("room_id", roomId)
+    .eq("submitted_by", user.id)
+    .eq("status", "pending");
+  if ((count ?? 0) >= 10) {
+    return { error: "You already have 10 pending questions in this room. Wait for some to be reviewed." };
+  }
+
+  const { error } = await supabase.from("match_questions").insert({
+    room_id: roomId,
+    match_id: matchId,
+    submitted_by: user.id,
+    question_text: text,
+    option_a: a,
+    option_b: b,
+  });
+
+  if (error) {
+    // Unique constraint violation = already submitted for this match
+    if (error.code === "23505") return { error: "You have already submitted a question for this match." };
+    return { error: error.message };
+  }
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { success: true };
+}
+
+export async function withdrawMatchQuestion(roomId: string, questionId: string) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { error } = await supabase
+    .from("match_questions")
+    .delete()
+    .eq("id", questionId)
+    .eq("submitted_by", user.id)
+    .eq("status", "pending");
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { success: true };
+}
+
+export async function approveQuestion(roomId: string, questionId: string, points: number = 1) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  // Must be the room owner
+  const { data: room } = await supabase
+    .from("rooms")
+    .select("created_by")
+    .eq("id", roomId)
+    .single();
+  if (!room || room.created_by !== user.id) return { error: "Not the room owner." };
+
+  // Fetch the question to get its match_id
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const adminClient = createAdminClient();
+  const { data: question } = await adminClient
+    .from("match_questions")
+    .select("id, match_id, status")
+    .eq("id", questionId)
+    .eq("room_id", roomId)
+    .single();
+  if (!question) return { error: "Question not found." };
+  if (question.status === "approved") return { success: true }; // idempotent
+
+  // Enforce max 2 approved per match per room
+  const { count } = await adminClient
+    .from("match_questions")
+    .select("id", { count: "exact", head: true })
+    .eq("room_id", roomId)
+    .eq("match_id", question.match_id)
+    .eq("status", "approved");
+  if ((count ?? 0) >= 2) {
+    return { error: "Max 2 questions already approved for this match." };
+  }
+
+  const pts = Math.max(1, Math.min(100, Math.round(points)));
+  const { error } = await adminClient
+    .from("match_questions")
+    .update({ status: "approved", points: pts })
+    .eq("id", questionId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { success: true };
+}
+
+export async function rejectQuestion(roomId: string, questionId: string) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  // Must be the room owner
+  const { data: room } = await supabase
+    .from("rooms")
+    .select("created_by")
+    .eq("id", roomId)
+    .single();
+  if (!room || room.created_by !== user.id) return { error: "Not the room owner." };
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const adminClient = createAdminClient();
+  const { error } = await adminClient
+    .from("match_questions")
+    .update({ status: "rejected" })
+    .eq("id", questionId)
+    .eq("room_id", roomId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { success: true };
+}
+
+export async function setQuestionCorrectAnswer(
+  roomId: string,
+  questionId: string,
+  answer: "a" | "b",
+) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  // Must be room owner
+  const { data: room } = await supabase
+    .from("rooms")
+    .select("created_by")
+    .eq("id", roomId)
+    .single();
+  if (!room || room.created_by !== user.id) return { error: "Not the room owner." };
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const adminClient = createAdminClient();
+
+  // Fetch the question
+  const { data: question } = await adminClient
+    .from("match_questions")
+    .select("id, points, correct_answer")
+    .eq("id", questionId)
+    .eq("room_id", roomId)
+    .single();
+  if (!question) return { error: "Question not found." };
+  if (question.correct_answer !== null) return { error: "Correct answer already set." };
+
+  // Mark correct answer
+  const { error: updateErr } = await adminClient
+    .from("match_questions")
+    .update({ correct_answer: answer })
+    .eq("id", questionId);
+  if (updateErr) return { error: updateErr.message };
+
+  // Fetch all votes for this question
+  const { data: votes } = await adminClient
+    .from("match_question_votes")
+    .select("user_id, answer")
+    .eq("question_id", questionId)
+    .eq("room_id", roomId);
+
+  // Award points to correct voters
+  const pts = question.points ?? 1;
+  const winners = (votes ?? []).filter((v: any) => v.answer === answer);
+  if (winners.length > 0) {
+    const rows = winners.map((v: any) => ({
+      room_id: roomId,
+      question_id: questionId,
+      user_id: v.user_id,
+      points_awarded: pts,
+    }));
+    await adminClient
+      .from("match_question_scores")
+      .upsert(rows, { onConflict: "room_id,question_id,user_id", ignoreDuplicates: true });
+  }
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { success: true };
+}
+
+export async function voteOnQuestion(
+  roomId: string,
+  questionId: string,
+  answer: "a" | "b",
+) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  // Must be a room member
+  const { data: membership } = await supabase
+    .from("room_memberships")
+    .select("role")
+    .eq("room_id", roomId)
+    .eq("user_id", user.id)
+    .single();
+  if (!membership) return { error: "Not a member of this room." };
+
+  // Fetch the question to check match is still open
+  const { data: question } = await supabase
+    .from("match_questions")
+    .select("id, match_id, status")
+    .eq("id", questionId)
+    .eq("room_id", roomId)
+    .single();
+  if (!question) return { error: "Question not found." };
+  if (question.status !== "approved") return { error: "Question is not available for voting." };
+
+  const { data: match } = await supabase
+    .from("matches")
+    .select("is_locked, status")
+    .eq("id", question.match_id)
+    .single();
+  if (match?.is_locked || match?.status === "finished") {
+    return { error: "Voting is closed — match has started." };
+  }
+
+  // Upsert vote (allow changing answer before match locks)
+  const { error } = await supabase
+    .from("match_question_votes")
+    .upsert(
+      { question_id: questionId, user_id: user.id, room_id: roomId, answer },
+      { onConflict: "question_id,user_id" }
+    );
+  if (error) return { error: error.message };
+
+  revalidatePath(`/rooms/${roomId}`);
+  return { success: true };
+}
+
 export async function saveCanvas(roomId: string, data: string) {
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
