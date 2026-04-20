@@ -30,7 +30,7 @@ export default async function DashboardPage({
 
   const { data: profileRow } = await supabase
     .from("profiles")
-    .select("username, username_set, display_name, age, country")
+    .select("username, username_set, display_name, age, country, is_fortune_teller, is_prophet")
     .eq("id", user.id)
     .single();
 
@@ -90,6 +90,8 @@ export default async function DashboardPage({
     age: profileRow?.age ?? null,
     country: profileRow?.country ?? null,
     totalPoints,
+    isFortuneTeller: profileRow?.is_fortune_teller ?? false,
+    isProphet: profileRow?.is_prophet ?? false,
   };
 
   return (
@@ -117,6 +119,22 @@ export default async function DashboardPage({
 
             {/* Age + Country row */}
             <ProfileDetailsEditor initialAge={profile.age} initialCountry={profile.country} />
+
+            {/* Badges */}
+            {(profile.isFortuneTeller || profile.isProphet) && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {profile.isFortuneTeller && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                    🔮 Fortune Teller
+                  </span>
+                )}
+                {profile.isProphet && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                    🧙 Prophet
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </section>

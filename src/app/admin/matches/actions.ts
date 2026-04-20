@@ -8,6 +8,130 @@ import { getOutcomeFromScore } from "@/domain/scoring/outcome";
 import type { Prediction, MatchResult } from "@/types/domain";
 import { revalidatePath } from "next/cache";
 
+/**
+ * Incremental streak update — called after a single match is finalized.
+ *
+ * For each user who predicted that match:
+ *   - direction correct (base_points > 0) → direction_streak + 1, else reset to 0
+ *   - exact correct (predicted scores == actual scores) → exact_streak + 1, else reset to 0
+ * Then derive is_fortune_teller / is_prophet from the new streak values.
+ *
+ * Uses a raw SQL RPC-style UPDATE per user so we read the current stored streak
+ * and simply add 1 or reset — no need to scan history.
+ */
+async function incrementBadgeStreaks(
+  admin: ReturnType<typeof createAdminClient>,
+  scoreRows: { user_id: string; base_points: number }[],
+  predByUserId: Map<string, { predHome: number; predAway: number }>,
+  actualHome: number,
+  actualAway: number,
+) {
+  for (const row of scoreRows) {
+    const directionCorrect = row.base_points > 0;
+    const pred = predByUserId.get(row.user_id);
+    const exactCorrect = pred
+      ? pred.predHome === actualHome && pred.predAway === actualAway
+      : false;
+
+    // Fetch current streak values for this user
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("direction_streak, exact_streak")
+      .eq("id", row.user_id)
+      .single();
+
+    const newDir = directionCorrect ? ((profile?.direction_streak ?? 0) + 1) : 0;
+    const newEx  = exactCorrect     ? ((profile?.exact_streak     ?? 0) + 1) : 0;
+
+    await admin
+      .from("profiles")
+      .update({
+        direction_streak:  newDir,
+        is_fortune_teller: newDir >= 3,
+        exact_streak:      newEx,
+        is_prophet:        newEx >= 3,
+      })
+      .eq("id", row.user_id);
+  }
+}
+
+/**
+ * Full recompute — used when a match is unfinalized or all matches are reset.
+ * Replays every finished match in order and rebuilds each user's current streak
+ * from scratch, then writes it back to profiles.
+ */
+async function recomputeBadgeStreaks(admin: ReturnType<typeof createAdminClient>) {
+  // Fetch all finished match results ordered chronologically
+  const { data: finishedMatches } = await admin
+    .from("matches")
+    .select("id, starts_at, home_score_90, away_score_90")
+    .eq("status", "finished")
+    .order("starts_at", { ascending: true });
+
+  // Reset everyone first
+  await admin
+    .from("profiles")
+    .update({ direction_streak: 0, is_fortune_teller: false, exact_streak: 0, is_prophet: false })
+    .neq("id", "00000000-0000-0000-0000-000000000000");
+
+  if (!finishedMatches || finishedMatches.length === 0) return;
+
+  const finishedMatchIds = finishedMatches.map((m: any) => m.id as string);
+  const matchById = new Map(finishedMatches.map((m: any) => [m.id as string, m]));
+
+  // Fetch all prediction scores + predicted scores for finished matches
+  const { data: scoreRows } = await admin
+    .from("prediction_scores")
+    .select("user_id, match_id, base_points, predictions!inner(predicted_home_score_90, predicted_away_score_90)")
+    .in("match_id", finishedMatchIds);
+
+  if (!scoreRows || scoreRows.length === 0) return;
+
+  // Group by user, preserving chronological order
+  const byUser = new Map<string, { matchId: string; startsAt: string; basePoints: number; predHome: number; predAway: number }[]>();
+  for (const row of scoreRows as any[]) {
+    const pred = row.predictions as { predicted_home_score_90: number; predicted_away_score_90: number };
+    const match = matchById.get(row.match_id as string);
+    if (!match) continue;
+    if (!byUser.has(row.user_id)) byUser.set(row.user_id, []);
+    byUser.get(row.user_id)!.push({
+      matchId: row.match_id,
+      startsAt: match.starts_at,
+      basePoints: row.base_points,
+      predHome: pred.predicted_home_score_90,
+      predAway: pred.predicted_away_score_90,
+    });
+  }
+
+  const updates: { id: string; direction_streak: number; is_fortune_teller: boolean; exact_streak: number; is_prophet: boolean }[] = [];
+
+  for (const [userId, entries] of byUser) {
+    entries.sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+
+    let dirStreak = 0;
+    let exStreak = 0;
+
+    for (const e of entries) {
+      const match = matchById.get(e.matchId) as any;
+      dirStreak = e.basePoints > 0 ? dirStreak + 1 : 0;
+      exStreak  = (e.predHome === (match.home_score_90 as number) && e.predAway === (match.away_score_90 as number))
+        ? exStreak + 1 : 0;
+    }
+
+    updates.push({
+      id: userId,
+      direction_streak: dirStreak,
+      is_fortune_teller: dirStreak >= 3,
+      exact_streak: exStreak,
+      is_prophet: exStreak >= 3,
+    });
+  }
+
+  if (updates.length > 0) {
+    await admin.from("profiles").upsert(updates, { onConflict: "id" });
+  }
+}
+
 function toPrediction(row: Record<string, unknown>): Prediction {
   return {
     id: row.id as string,
@@ -183,6 +307,23 @@ export async function finalizeMatch(
     }
   }
 
+  // 9. Increment badge streaks for each user who predicted this match
+  const predByUserId = new Map(
+    predRows.map((r) => ({
+      userId: r.user_id as string,
+      predHome: r.predicted_home_score_90 as number,
+      predAway: r.predicted_away_score_90 as number,
+    }))
+    .map((r) => [r.userId, { predHome: r.predHome, predAway: r.predAway }])
+  );
+  await incrementBadgeStreaks(
+    admin,
+    scoreRows.map((s) => ({ user_id: s.user_id, base_points: s.base_points })),
+    predByUserId,
+    homeScore,
+    awayScore,
+  );
+
   revalidatePath("/admin/matches");
   revalidatePath("/matches");
   revalidatePath("/leaderboard");
@@ -262,6 +403,9 @@ export async function unfinalizeMatch(
 
   if (updateErr) return { error: updateErr.message };
 
+  // Full recompute: streaks for remaining finished matches may have changed
+  await recomputeBadgeStreaks(admin);
+
   revalidatePath("/admin/matches");
   revalidatePath("/matches");
   revalidatePath("/leaderboard");
@@ -300,6 +444,9 @@ export async function resetMatches(): Promise<{ error?: string }> {
     .neq("id", "00000000-0000-0000-0000-000000000000");
 
   if (bonusErr) return { error: bonusErr.message };
+
+  // All scores cleared — reset all streaks to zero
+  await recomputeBadgeStreaks(admin);
 
   revalidatePath("/admin/matches");
   revalidatePath("/matches");

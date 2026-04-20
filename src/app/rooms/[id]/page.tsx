@@ -43,7 +43,7 @@ export default async function RoomDetailPage({
   // Fetch members with profile info
   const { data: members } = await supabase
     .from("room_memberships")
-    .select("user_id, role, joined_at, profiles(username, display_name)")
+    .select("user_id, role, joined_at, profiles(username, display_name, is_fortune_teller, is_prophet)")
     .eq("room_id", id)
     .order("joined_at", { ascending: true });
 
@@ -163,6 +163,8 @@ export default async function RoomDetailPage({
         username: m.profiles?.username ?? "Unknown",
         displayName: m.profiles?.display_name,
         role: m.role,
+        isFortuneTeller: m.profiles?.is_fortune_teller ?? false,
+        isProphet: m.profiles?.is_prophet ?? false,
       },
     ])
   );
@@ -802,6 +804,12 @@ export default async function RoomDetailPage({
                       {s.displayName || s.username}
                       {s.role === "owner" && (
                         <span className="ml-1 text-xs">👑</span>
+                      )}
+                      {s.isFortuneTeller && (
+                        <span className="ml-1 text-xs" title="Fortune Teller: 3+ correct outcomes in a row">🔮</span>
+                      )}
+                      {s.isProphet && (
+                        <span className="ml-1 text-xs" title="Prophet: 3+ exact scores in a row">🧙</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-center text-field font-medium">{s.exact}</td>

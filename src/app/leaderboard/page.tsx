@@ -47,7 +47,7 @@ export default async function LeaderboardPage() {
     allUserIds.length > 0
       ? await supabase
           .from("profiles")
-          .select("id, username, display_name")
+          .select("id, username, display_name, is_fortune_teller, is_prophet")
           .in("id", allUserIds)
       : { data: [] };
 
@@ -57,6 +57,8 @@ export default async function LeaderboardPage() {
       {
         username: p.username as string,
         display_name: p.display_name as string | null,
+        is_fortune_teller: p.is_fortune_teller as boolean,
+        is_prophet: p.is_prophet as boolean,
       },
     ])
   );
@@ -66,6 +68,8 @@ export default async function LeaderboardPage() {
       userId,
       username: profileMap.get(userId)?.username ?? "Unknown",
       displayName: profileMap.get(userId)?.display_name,
+      isFortuneTeller: profileMap.get(userId)?.is_fortune_teller ?? false,
+      isProphet: profileMap.get(userId)?.is_prophet ?? false,
       totalPoints: points,
     }))
     .sort((a, b) => b.totalPoints - a.totalPoints);
@@ -77,6 +81,8 @@ export default async function LeaderboardPage() {
     entries: {
       userId: string;
       name: string;
+      isFortuneTeller: boolean;
+      isProphet: boolean;
       base: number;
       bonus: number;
       total: number;
@@ -98,7 +104,7 @@ export default async function LeaderboardPage() {
       // Get all members of this room
       const { data: roomMembers } = await supabase
         .from("room_memberships")
-        .select("user_id, profiles(username, display_name)")
+        .select("user_id, profiles(username, display_name, is_fortune_teller, is_prophet)")
         .eq("room_id", room.id);
 
       const memberIds = (roomMembers ?? []).map((m: any) => m.user_id as string);
@@ -144,14 +150,20 @@ export default async function LeaderboardPage() {
       const memberProfileMap = new Map(
         (roomMembers ?? []).map((m: any) => [
           m.user_id,
-          (m.profiles?.display_name || m.profiles?.username || "Unknown") as string,
+          {
+            name: (m.profiles?.display_name || m.profiles?.username || "Unknown") as string,
+            isFortuneTeller: (m.profiles?.is_fortune_teller ?? false) as boolean,
+            isProphet: (m.profiles?.is_prophet ?? false) as boolean,
+          },
         ])
       );
 
       const entries = [...pts.entries()]
         .map(([userId, p]) => ({
           userId,
-          name: memberProfileMap.get(userId) ?? "Unknown",
+          name: memberProfileMap.get(userId)?.name ?? "Unknown",
+          isFortuneTeller: memberProfileMap.get(userId)?.isFortuneTeller ?? false,
+          isProphet: memberProfileMap.get(userId)?.isProphet ?? false,
           base: p.base,
           bonus: p.bonus,
           total: p.base + p.bonus + p.global,
@@ -192,6 +204,12 @@ export default async function LeaderboardPage() {
                     <td className="px-4 py-2 text-ink/50">{i + 1}</td>
                     <td className="px-4 py-2">
                       {entry.displayName || entry.username}
+                      {entry.isFortuneTeller && (
+                        <span className="ml-1 text-xs" title="Fortune Teller: 3+ correct outcomes in a row">🔮</span>
+                      )}
+                      {entry.isProphet && (
+                        <span className="ml-1 text-xs" title="Prophet: 3+ exact scores in a row">🧙</span>
+                      )}
                     </td>
                     <td className="px-4 py-2 text-right font-semibold">
                       {entry.totalPoints}
@@ -240,7 +258,15 @@ export default async function LeaderboardPage() {
                           }`}
                         >
                           <td className="px-3 py-2 text-ink/50">{i + 1}</td>
-                          <td className="px-3 py-2">{e.name}</td>
+                          <td className="px-3 py-2">
+                            {e.name}
+                            {e.isFortuneTeller && (
+                              <span className="ml-1 text-xs" title="Fortune Teller: 3+ correct outcomes in a row">🔮</span>
+                            )}
+                            {e.isProphet && (
+                              <span className="ml-1 text-xs" title="Prophet: 3+ exact scores in a row">🧙</span>
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-right">{e.base}</td>
                           <td className="px-3 py-2 text-right text-clay">
                             {e.bonus > 0 ? `+${e.bonus}` : "0"}
