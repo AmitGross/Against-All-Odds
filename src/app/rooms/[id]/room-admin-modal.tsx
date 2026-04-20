@@ -76,16 +76,6 @@ export default function RoomAdminModal({ roomId, members, peeksPerPlayer, snipes
     });
   }
 
-  function handleReset() {
-    setResetError(null);
-    setResetSuccess(false);
-    startReset(async () => {
-      const result = await resetAllTokenUsed(roomId);
-      if (result.error) setResetError(result.error);
-      else setResetSuccess(true);
-    });
-  }
-
   function handleToggleLock() {
     setLockError(null);
     startLock(async () => {
