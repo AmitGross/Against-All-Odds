@@ -87,15 +87,16 @@ export default async function RoomDetailPage({
     .eq("room_id", id);
 
   // Fetch global + knockout prediction points for members
-  const [{ data: globalPreds }, { data: knockoutPreds }] = memberIds.length > 0
+  const [{ data: globalPreds }, { data: knockoutPreds }, { data: questionScores }] = memberIds.length > 0
     ? await Promise.all([
         adminClient.from("global_predictions").select("user_id, points_awarded").in("user_id", memberIds),
         adminClient
           .from("knockout_predictions")
           .select("user_id, points_awarded, predicted_home_score, predicted_away_score, knockout_slots!inner(home_score, away_score, winner_team_id, home_team_id)")
           .in("user_id", memberIds),
+        adminClient.from("match_question_scores").select("user_id, points_awarded").eq("room_id", id).in("user_id", memberIds),
       ])
-    : [{ data: [] }, { data: [] }];
+    : [{ data: [] }, { data: [] }, { data: [] }];
 
   // Aggregate standings with per-user stats
   const standings = new Map<string, {
@@ -105,9 +106,10 @@ export default async function RoomDetailPage({
     pts: number;
     globalBonus: number;
     roomBonus: number;
+    questionBonus: number;
   }>();
   for (const uid of memberIds) {
-    standings.set(uid, { exact: 0, direction: 0, wrong: 0, pts: 0, globalBonus: 0, roomBonus: 0 });
+    standings.set(uid, { exact: 0, direction: 0, wrong: 0, pts: 0, globalBonus: 0, roomBonus: 0, questionBonus: 0 });
   }
   for (const s of scores ?? []) {
     const entry = standings.get(s.user_id);
@@ -135,6 +137,10 @@ export default async function RoomDetailPage({
   for (const g of globalPreds ?? []) {
     const entry = standings.get(g.user_id);
     if (entry) entry.globalBonus += g.points_awarded;
+  }
+  for (const qs of questionScores ?? []) {
+    const entry = standings.get((qs as any).user_id);
+    if (entry) entry.questionBonus += (qs as any).points_awarded;
   }
   for (const k of knockoutPreds ?? []) {
     const entry = standings.get(k.user_id);
@@ -181,7 +187,8 @@ export default async function RoomDetailPage({
       pts: s.pts,
       globalBonus: s.globalBonus,
       roomBonus: s.roomBonus,
-      total: s.pts + s.globalBonus + s.roomBonus,
+      questionBonus: s.questionBonus,
+      total: s.pts + s.globalBonus + s.roomBonus + s.questionBonus,
     }))
     .sort((a, b) => b.total - a.total);
 
@@ -924,6 +931,7 @@ export default async function RoomDetailPage({
                   <th className="px-3 py-2 text-right">Pts</th>
                   <th className="px-3 py-2 text-right">Global Bonus</th>
                   <th className="px-3 py-2 text-right">Room Bonus</th>
+                  <th className="px-3 py-2 text-right">Q Bonus</th>
                   <th className="px-3 py-2 text-right font-bold text-ink">Total</th>
                 </tr>
               </thead>
@@ -957,6 +965,9 @@ export default async function RoomDetailPage({
                     </td>
                     <td className="px-3 py-2 text-right text-clay">
                       {s.roomBonus > 0 ? `+${s.roomBonus}` : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-purple-500">
+                      {s.questionBonus > 0 ? `+${s.questionBonus}` : "—"}
                     </td>
                     <td className="px-3 py-2 text-right font-semibold">
                       {s.total}
