@@ -6,6 +6,7 @@ import RenameRoomForm from "./rename-room-form";
 import WatchPartyScheduler from "./watch-party-scheduler";
 import TelepathyViewer from "./telepathy-viewer";
 import RoomCanvas from "./room-canvas";
+import RoomAdminModal from "./room-admin-modal";
 
 export default async function RoomDetailPage({
   params,
@@ -23,7 +24,7 @@ export default async function RoomDetailPage({
   // Fetch room
   const { data: room, error: roomError } = await supabase
     .from("rooms")
-    .select("id, name, invite_code, created_by, created_at")
+    .select("id, name, invite_code, created_by, created_at, room_rules_locked")
     .eq("id", id)
     .single();
 
@@ -177,7 +178,7 @@ export default async function RoomDetailPage({
   // Fetch locked/finished match IDs first (the .or on a referenced table is unreliable)
   const { data: lockedMatchRows } = await supabase
     .from("matches")
-    .select("id, is_locked, status, starts_at, home_score_90, away_score_90, home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)")
+    .select("id, is_locked, status, starts_at, home_score_90, away_score_90, home_team:teams!matches_home_team_id_fkey(name, flag_url), away_team:teams!matches_away_team_id_fkey(name, flag_url)")
     .or("is_locked.eq.true,status.eq.finished");
 
   const lockedMatchIds = lockedMatchRows?.map((m) => m.id) ?? [];
@@ -200,9 +201,15 @@ export default async function RoomDetailPage({
   const telepathyMatchMap = new Map<string, {
     matchId: string;
     label: string;
+    roundLabel: string | null;
+    homeName: string;
+    awayName: string;
     startsAt: string;
     homeScore: number | null;
     awayScore: number | null;
+    homeFlagUrl: string | null;
+    awayFlagUrl: string | null;
+    isLocked: boolean;
     predictions: { userId: string; username: string; displayName: string | null; home: number | null; away: number | null }[];
   }>();
 
@@ -216,9 +223,15 @@ export default async function RoomDetailPage({
       telepathyMatchMap.set(m.id, {
         matchId: m.id,
         label,
+        roundLabel: null,
+        homeName: home,
+        awayName: away,
         startsAt: m.starts_at,
         homeScore: m.home_score_90,
         awayScore: m.away_score_90,
+        homeFlagUrl: (m.home_team as any)?.flag_url ?? null,
+        awayFlagUrl: (m.away_team as any)?.flag_url ?? null,
+        isLocked: true,
         predictions: [],
       });
     }
@@ -235,7 +248,7 @@ export default async function RoomDetailPage({
   // Fetch ALL knockout slots to build match pairs (each slot = one team position; pairs of adjacent positions = one match)
   const { data: allKnockoutSlotsRaw } = await supabase
     .from("knockout_slots")
-    .select("id, round, side, position, slot_label, match_date, home_score, away_score, winner_team_id, home_team_id, home_team:teams!knockout_slots_home_team_id_fkey(name), away_team:teams!knockout_slots_away_team_id_fkey(name)")
+    .select("id, round, side, position, slot_label, match_date, home_score, away_score, winner_team_id, home_team_id, home_team:teams!knockout_slots_home_team_id_fkey(name, flag_url), away_team:teams!knockout_slots_away_team_id_fkey(name, flag_url)")
     .order("round").order("side").order("position");
 
   const allKnockoutSlots = (allKnockoutSlotsRaw ?? []) as any[];
@@ -246,6 +259,8 @@ export default async function RoomDetailPage({
     round: string;
     teamAName: string | null;
     teamBName: string | null;
+    teamAFlagUrl: string | null;
+    teamBFlagUrl: string | null;
     slotALabel: string | null;
     slotBLabel: string | null;
     matchDate: string | null;
@@ -270,6 +285,8 @@ export default async function RoomDetailPage({
         round: a.round,
         teamAName: a.home_team?.name ?? null,
         teamBName: b.home_team?.name ?? null,
+        teamAFlagUrl: a.home_team?.flag_url ?? null,
+        teamBFlagUrl: b.home_team?.flag_url ?? null,
         slotALabel: a.slot_label,
         slotBLabel: b.slot_label,
         matchDate: a.match_date,
@@ -286,6 +303,7 @@ export default async function RoomDetailPage({
     knockoutMatchPairs.push({
       slotAId: leftFinal.id, round: "final",
       teamAName: leftFinal.home_team?.name ?? null, teamBName: rightFinal.home_team?.name ?? null,
+      teamAFlagUrl: leftFinal.home_team?.flag_url ?? null, teamBFlagUrl: rightFinal.home_team?.flag_url ?? null,
       slotALabel: leftFinal.slot_label, slotBLabel: rightFinal.slot_label,
       matchDate: leftFinal.match_date, homeScore: leftFinal.home_score,
       awayScore: leftFinal.away_score, winnerTeamId: leftFinal.winner_team_id,
@@ -297,6 +315,7 @@ export default async function RoomDetailPage({
     knockoutMatchPairs.push({
       slotAId: bronzeSlots[0].id, round: "bronze",
       teamAName: bronzeSlots[0].home_team?.name ?? null, teamBName: bronzeSlots[1].home_team?.name ?? null,
+      teamAFlagUrl: bronzeSlots[0].home_team?.flag_url ?? null, teamBFlagUrl: bronzeSlots[1].home_team?.flag_url ?? null,
       slotALabel: bronzeSlots[0].slot_label, slotBLabel: bronzeSlots[1].slot_label,
       matchDate: bronzeSlots[0].match_date, homeScore: bronzeSlots[0].home_score,
       awayScore: bronzeSlots[0].away_score, winnerTeamId: bronzeSlots[0].winner_team_id,
@@ -331,9 +350,15 @@ export default async function RoomDetailPage({
       telepathyMatchMap.set(key, {
         matchId: key,
         label,
+        roundLabel: roundLabel[pair.round] ?? pair.round,
+        homeName: pair.teamAName ?? "TBD",
+        awayName: pair.teamBName ?? "TBD",
         startsAt: pair.matchDate ?? "9999",
         homeScore: pair.homeScore,
         awayScore: pair.awayScore,
+        homeFlagUrl: pair.teamAFlagUrl,
+        awayFlagUrl: pair.teamBFlagUrl,
+        isLocked: true,
         predictions: [],
       });
     }
@@ -345,6 +370,60 @@ export default async function RoomDetailPage({
       home: (p as any).predicted_home_score ?? null,
       away: (p as any).predicted_away_score ?? null,
     });
+  }
+
+  // Add next upcoming (unlocked) group match(es) — show with ? in the viewer
+  const { data: nextUnlockedRows } = await supabase
+    .from("matches")
+    .select("id, starts_at, home_score_90, away_score_90, home_team:teams!matches_home_team_id_fkey(name, flag_url), away_team:teams!matches_away_team_id_fkey(name, flag_url)")
+    .eq("is_locked", false)
+    .neq("status", "finished")
+    .order("starts_at", { ascending: true })
+    .limit(20);
+
+  if (nextUnlockedRows && nextUnlockedRows.length > 0) {
+    const firstKickoff = (nextUnlockedRows[0] as any).starts_at;
+    const nextBatch = (nextUnlockedRows as any[]).filter((m) => m.starts_at === firstKickoff);
+    const nextBatchIds = nextBatch.map((m) => m.id);
+
+    // Fetch predictions for these upcoming matches (bypasses RLS so we see all members)
+    const { data: upcomingPreds } = memberIds.length > 0 && nextBatchIds.length > 0
+      ? await adminClient
+          .from("predictions")
+          .select("user_id, predicted_home_score_90, predicted_away_score_90, match_id")
+          .in("user_id", memberIds)
+          .in("match_id", nextBatchIds)
+      : { data: [] };
+
+    for (const m of nextBatch) {
+      const home = m.home_team?.name ?? "TBD";
+      const away = m.away_team?.name ?? "TBD";
+      telepathyMatchMap.set(m.id, {
+        matchId: m.id,
+        label: `${home} vs ${away}`,
+        roundLabel: "Upcoming",
+        homeName: home,
+        awayName: away,
+        startsAt: m.starts_at,
+        homeScore: m.home_score_90,
+        awayScore: m.away_score_90,
+        homeFlagUrl: m.home_team?.flag_url ?? null,
+        awayFlagUrl: m.away_team?.flag_url ?? null,
+        isLocked: false,
+        predictions: (upcomingPreds ?? [])
+          .filter((p: any) => p.match_id === m.id)
+          .map((p: any) => {
+            const profile = profileMap.get(p.user_id);
+            return {
+              userId: p.user_id,
+              username: profile?.username ?? "Unknown",
+              displayName: profile?.displayName ?? null,
+              home: p.predicted_home_score_90,
+              away: p.predicted_away_score_90,
+            };
+          }),
+      });
+    }
   }
 
   // Fill in all roommates who didn't submit a prediction for each match
@@ -438,6 +517,56 @@ export default async function RoomDetailPage({
     isLocked: r.is_locked as boolean,
   }));
 
+  // Fetch current user's peek token balance and revealed matches for this room
+  const peekTokenRow = user
+    ? await supabase
+        .from("room_peek_tokens")
+        .select("granted, used")
+        .eq("room_id", id)
+        .eq("user_id", user.id)
+        .maybeSingle()
+        .then((r) => r.data)
+    : null;
+
+  const { data: peekRevealRows } = user
+    ? await supabase
+        .from("room_peek_reveals")
+        .select("match_id, knockout_slot_id")
+        .eq("room_id", id)
+        .eq("user_id", user.id)
+    : { data: [] };
+
+  const peekedMatchIds = new Set<string>(
+    (peekRevealRows ?? []).map((r: any) => r.match_id ?? `ko:${r.knockout_slot_id}`)
+  );
+
+  const peekGranted = peekTokenRow?.granted ?? 0;
+  const peekUsed = peekTokenRow?.used ?? 0;
+
+  // If owner, fetch all members' peek token rows for the management panel
+  const { data: allPeekTokens } = isOwner
+    ? await supabase
+        .from("room_peek_tokens")
+        .select("user_id, granted, used")
+        .eq("room_id", id)
+    : { data: [] };
+
+  const peekTokenMap = new Map<string, { granted: number; used: number }>(
+    (allPeekTokens ?? []).map((t: any) => [t.user_id, { granted: t.granted, used: t.used }])
+  );
+
+  // Fetch first group match start time (for tournament-locked logic)
+  const { data: firstGroupMatch } = await supabase
+    .from("matches")
+    .select("starts_at")
+    .eq("stage", "group")
+    .order("starts_at", { ascending: true })
+    .limit(1)
+    .single();
+  const tournamentStarted = firstGroupMatch
+    ? new Date(firstGroupMatch.starts_at) <= new Date()
+    : false;
+
   // Fetch shared canvas snapshot
   const { data: canvasRow } = await supabase
     .from("room_canvas")
@@ -458,7 +587,18 @@ export default async function RoomDetailPage({
             </p>
             {isOwner && <RenameRoomForm roomId={room.id} currentName={room.name} />}
           </div>
-          <LeaveRoomButton roomId={room.id} isOwner={isOwner} otherMembers={otherMembers} />
+          <div className="flex flex-col items-end gap-2">
+            {isOwner && (
+              <RoomAdminModal
+                roomId={id}
+                rulesLocked={room.room_rules_locked ?? false}
+                tournamentStarted={tournamentStarted}
+                peeksPerPlayer={peekTokenMap.size > 0 ? Math.max(...[...peekTokenMap.values()].map(t => t.granted)) : 0}
+                members={(members ?? []).map((m: any) => ({ userId: m.user_id as string }))}
+              />
+            )}
+            <LeaveRoomButton roomId={room.id} isOwner={isOwner} otherMembers={otherMembers} />
+          </div>
         </div>
 
         {/* Invite Code */}
@@ -551,10 +691,32 @@ export default async function RoomDetailPage({
         </div>
 
         {/* Section e — Telepathy */}
-        <TelepathyViewer matches={telepathyMatches} />
+        <TelepathyViewer
+          matches={telepathyMatches}
+          roomId={id}
+          peekGranted={peekGranted}
+          peekUsed={peekUsed}
+          peekedMatchIds={peekedMatchIds}
+        />
 
-        {/* Section F — placeholder */}
-        <div className="rounded-lg border border-ink/10 bg-white p-4" />
+        {/* Section F — Peek token balance */}
+        <div className="rounded-lg border border-ink/10 bg-white p-4">
+          <h3 className="mb-3 text-sm font-semibold">👁️ Peek Tokens</h3>
+          <div className="flex flex-col items-center justify-center h-full gap-1 min-h-[80px]">
+            <p className="text-2xl font-bold">{peekGranted - peekUsed}</p>
+            <p className="text-xs text-ink/50">peeks remaining</p>
+            {peekGranted > 0 && (
+              <p className="text-xs text-ink/30">{peekUsed} of {peekGranted} used</p>
+            )}
+            {peekGranted === 0 && (
+              <p className="text-xs text-ink/30 text-center mt-1">
+                {isOwner
+                  ? "Open Room Admin (⚙️) to set peek tokens for everyone."
+                  : "The room owner hasn't granted any peek tokens yet."}
+              </p>
+            )}
+          </div>
+        </div>
 
       </div>
 
