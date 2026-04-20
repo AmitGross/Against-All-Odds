@@ -620,6 +620,17 @@ export default async function RoomDetailPage({
     ? new Date(firstGroupMatch.starts_at) <= new Date()
     : false;
 
+  // Next two upcoming matches for Section C panel
+  const upcomingTwo = (nextUnlockedRows ?? []).slice(0, 2).map((m: any) => ({
+    id: m.id as string,
+    homeName: (m.home_team?.name ?? "TBD") as string,
+    awayName: (m.away_team?.name ?? "TBD") as string,
+    homeFlagUrl: (m.home_team?.flag_url ?? null) as string | null,
+    awayFlagUrl: (m.away_team?.flag_url ?? null) as string | null,
+    startsAt: (m.starts_at ?? null) as string | null,
+    watchPlace: savedSlots.find(s => s.matchId === m.id && s.place)?.place ?? null,
+  }));
+
   // Fetch shared canvas snapshot
   const { data: canvasRow } = await supabase
     .from("room_canvas")
@@ -813,8 +824,59 @@ export default async function RoomDetailPage({
           </div>
         </div>
 
-        {/* Section C — placeholder */}
-        <div className="rounded-lg border border-ink/10 bg-white p-4" />
+        {/* Section C — Upcoming Matches */}
+        <div className="rounded-lg border border-ink/10 bg-white p-4 flex flex-col gap-4">
+          <h3 className="text-lg font-semibold">Upcoming Matches</h3>
+          {upcomingTwo.length === 0 ? (
+            <p className="text-sm text-ink/40">No upcoming matches scheduled.</p>
+          ) : (
+            upcomingTwo.map((m) => {
+              const d = m.startsAt ? new Date(m.startsAt) : null;
+              const timeStr = d
+                ? d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) + " UTC"
+                : "";
+              const dateStr = d
+                ? d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+                : "";
+              return (
+                <div key={m.id} className="rounded-lg border border-ink/10 bg-ink/[0.03] overflow-hidden">
+                  {/* Scoreboard bar */}
+                  <div className="bg-ink text-white flex items-center px-4 py-3 gap-2">
+                    {/* Home */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {m.homeFlagUrl && (
+                        <img src={m.homeFlagUrl} alt={m.homeName} className="w-7 h-[18px] object-cover rounded-[2px] flex-shrink-0" />
+                      )}
+                      <span className="font-semibold text-sm truncate">{m.homeName}</span>
+                      <span className="ml-1 rounded bg-white/15 px-2 py-0.5 text-xs font-bold tabular-nums">—</span>
+                    </div>
+                    {/* Time */}
+                    <div className="flex-shrink-0 rounded bg-white/10 px-3 py-1 text-xs font-medium tracking-wide">
+                      {timeStr}
+                    </div>
+                    {/* Away */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                      <span className="mr-1 rounded bg-white/15 px-2 py-0.5 text-xs font-bold tabular-nums">—</span>
+                      <span className="font-semibold text-sm truncate text-right">{m.awayName}</span>
+                      {m.awayFlagUrl && (
+                        <img src={m.awayFlagUrl} alt={m.awayName} className="w-7 h-[18px] object-cover rounded-[2px] flex-shrink-0" />
+                      )}
+                    </div>
+                  </div>
+                  {/* Date + where to watch */}
+                  <div className="px-4 py-3 space-y-1">
+                    {dateStr && (
+                      <p className="text-sm font-semibold" style={{ color: "#5a6e2c" }}>{dateStr}</p>
+                    )}
+                    <p className="text-xs text-ink/40">
+                      {m.watchPlace ? m.watchPlace : "where to watch"}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
 
       </div>
 
