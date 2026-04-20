@@ -204,7 +204,7 @@ export default async function LeaderboardPage() {
                     <td className="px-4 py-2 text-ink/50">{i + 1}</td>
                     <td className="px-4 py-2">
                       {entry.displayName || entry.username}
-                      {entry.isFortuneTeller && (
+                      {entry.isFortuneTeller && !entry.isProphet && (
                         <span className="ml-1 text-xs" title="Fortune Teller: 3+ correct outcomes in a row">🔮</span>
                       )}
                       {entry.isProphet && (
@@ -260,7 +260,7 @@ export default async function LeaderboardPage() {
                           <td className="px-3 py-2 text-ink/50">{i + 1}</td>
                           <td className="px-3 py-2">
                             {e.name}
-                            {e.isFortuneTeller && (
+                            {e.isFortuneTeller && !e.isProphet && (
                               <span className="ml-1 text-xs" title="Fortune Teller: 3+ correct outcomes in a row">🔮</span>
                             )}
                             {e.isProphet && (

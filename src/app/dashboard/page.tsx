@@ -123,7 +123,7 @@ export default async function DashboardPage({
             {/* Badges */}
             {(profile.isFortuneTeller || profile.isProphet) && (
               <div className="flex flex-wrap gap-2 pt-1">
-                {profile.isFortuneTeller && (
+                {profile.isFortuneTeller && !profile.isProphet && (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
                     🔮 Fortune Teller
                   </span>

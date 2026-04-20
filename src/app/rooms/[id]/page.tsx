@@ -805,7 +805,7 @@ export default async function RoomDetailPage({
                       {s.role === "owner" && (
                         <span className="ml-1 text-xs">👑</span>
                       )}
-                      {s.isFortuneTeller && (
+                      {s.isFortuneTeller && !s.isProphet && (
                         <span className="ml-1 text-xs" title="Fortune Teller: 3+ correct outcomes in a row">🔮</span>
                       )}
                       {s.isProphet && (
