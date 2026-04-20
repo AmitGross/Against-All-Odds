@@ -13,10 +13,13 @@ A Next.js + Supabase prediction game for the 2026 FIFA World Cup.
 - **About page** — in-app guide covering rules, scoring, rooms, and the model
 - **Rooms** — private prediction rooms with:
   - **A** Header with invite code
-  - **B** Live standings table (sorted by points)
+  - **B** Live standings table (sorted by points, includes Q Bonus from match questions)
+  - **C** Upcoming matches — with A/B question voting
   - **D** Watch party scheduler — 8 configurable slots (group + knockout matches, per-slot locking)
   - **E** Telepathy viewer — see how roommates predicted the same locked/finished matches
-  - **G** Shared drawing board — collaborative canvas, auto-saved every 1.5 s
+  - **G** Activity log + Match question submission form
+  - **Shared drawing board** — collaborative canvas, auto-saved every 1.5 s
+  - **Match questions** — users submit A/B questions per match; room admin approves (up to 2 per match) and sets point value; all members vote before kick-off; room admin marks correct answer post-match and points are automatically awarded
 
 ## Tech Stack
 
@@ -58,6 +61,10 @@ Run migrations in order via the Supabase SQL editor (`supabase/migrations/`).
 | 017 | `017_ml_predictions_scores.sql` | ML score predictions |
 | 018 | `018_ml_predictions_team_names.sql` | ML team name fixes |
 | 021 | `021_room_canvas.sql` | Shared drawing board per room |
+| 027 | `027_match_questions.sql` | Match questions table + RLS |
+| 028 | `028_match_questions_correct_answer.sql` | Adds correct_answer column |
+| 029 | `029_match_question_votes.sql` | User votes on questions |
+| 030 | `030_match_question_scores.sql` | Points awarded for correct answers |
 
 ## Scoring
 
